@@ -33,31 +33,10 @@ internal static class MoreCompanyCompat
     public static void ApplyLocalCosmeticVisibility(
         PlayerControllerB player, bool localBodyVisible, bool firstPersonArmsActive)
     {
-        if (!_isInstalled)
+        if (!_isInstalled || !ConfigManager.EnableMoreCompanyCompatibility.Value || !localBodyVisible)
             return;
 
-        if (!ConfigManager.EnableMoreCompanyCompatibility.Value)
-            return;
-
-        if (!localBodyVisible)
-            return;
-
-        if (!TryResolveTypes())
-            return;
-
-        if (_cosmeticApplicationType == null || _spawnedCosmeticsField == null)
-            return;
-
-        Transform? metarig = player.transform.Find(Constants.ScavengerModelName)?.Find(Constants.MetarigName);
-        if (metarig == null)
-            return;
-
-        Component? cosmeticApplication = metarig.GetComponent(_cosmeticApplicationType);
-        if (cosmeticApplication == null)
-            return;
-
-        object? cosmeticsObject = _spawnedCosmeticsField.GetValue(cosmeticApplication);
-        if (cosmeticsObject is not IEnumerable cosmetics)
+        if (!TryResolveSpawnedCosmetics(player, out IEnumerable cosmetics))
             return;
 
         foreach (object cosmetic in cosmetics)
@@ -69,6 +48,32 @@ internal static class MoreCompanyCompat
             if (cosmeticComponent.gameObject.activeSelf != visible)
                 cosmeticComponent.gameObject.SetActive(visible);
         }
+    }
+
+    private static bool TryResolveSpawnedCosmetics(PlayerControllerB player, out IEnumerable cosmetics)
+    {
+        cosmetics = Array.Empty<object>();
+
+        if (!TryResolveTypes())
+            return false;
+
+        if (_cosmeticApplicationType == null || _spawnedCosmeticsField == null)
+            return false;
+
+        Transform? metarig = player.transform.Find(Constants.ScavengerModelName)?.Find(Constants.MetarigName);
+        if (metarig == null)
+            return false;
+
+        Component? cosmeticApplication = metarig.GetComponent(_cosmeticApplicationType);
+        if (cosmeticApplication == null)
+            return false;
+
+        object? cosmeticsObject = _spawnedCosmeticsField.GetValue(cosmeticApplication);
+        if (cosmeticsObject is not IEnumerable resolved)
+            return false;
+
+        cosmetics = resolved;
+        return true;
     }
 
     private static bool ShouldShowCosmetic(object cosmetic, bool firstPersonArmsActive)
