@@ -135,29 +135,44 @@ internal static class LocalBodyViewController
         state.RightArmBone = FindBodyBone(player, Constants.RightArmBoneName);
 
         state.BodyRenderer = player.thisPlayerModel;
-        if (state.BodyRenderer != null && !state.OriginalBodyMeshCaptured && !state.HeadHidden)
-        {
-            Mesh current = state.BodyRenderer.sharedMesh;
-            if (current != null && !MeshSurgery.IsGenerated(current.GetInstanceID()))
-            {
-                state.OriginalBodyMesh = current;
-                state.OriginalBodyMeshCaptured = true;
-            }
-        }
+        CaptureOriginalBodyMesh(state);
 
         state.LocalVisor = player.localVisor;
-        if (state.LocalVisor != null && !state.VisorOriginalParentCaptured && !state.VisorReparented)
-        {
-            state.VisorOriginalParent = state.LocalVisor.parent;
-            state.VisorOriginalParentCaptured = true;
-        }
+        CaptureVisorOriginalParent(state);
 
         state.GameplayCamera = player.gameplayCamera;
-        if (state.GameplayCamera != null && !state.CameraBaseCaptured && !state.CameraOffsetApplied)
-        {
-            state.CameraBaseLocalPosition = state.GameplayCamera.transform.localPosition;
-            state.CameraBaseCaptured = true;
-        }
+        CaptureCameraBase(state);
+    }
+
+    private static void CaptureOriginalBodyMesh(LocalBodyState state)
+    {
+        if (state.BodyRenderer == null || state.OriginalBodyMeshCaptured || state.HeadHidden)
+            return;
+
+        Mesh current = state.BodyRenderer.sharedMesh;
+        if (current == null || MeshSurgery.IsGenerated(current.GetInstanceID()))
+            return;
+
+        state.OriginalBodyMesh = current;
+        state.OriginalBodyMeshCaptured = true;
+    }
+
+    private static void CaptureVisorOriginalParent(LocalBodyState state)
+    {
+        if (state.LocalVisor == null || state.VisorOriginalParentCaptured || state.VisorReparented)
+            return;
+
+        state.VisorOriginalParent = state.LocalVisor.parent;
+        state.VisorOriginalParentCaptured = true;
+    }
+
+    private static void CaptureCameraBase(LocalBodyState state)
+    {
+        if (state.GameplayCamera == null || state.CameraBaseCaptured || state.CameraOffsetApplied)
+            return;
+
+        state.CameraBaseLocalPosition = state.GameplayCamera.transform.localPosition;
+        state.CameraBaseCaptured = true;
     }
 
     private static Transform? FindHeadBone(Transform modelRoot, PlayerControllerB player)
