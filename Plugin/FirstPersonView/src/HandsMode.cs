@@ -1,8 +1,7 @@
-namespace FirstPersonView
+namespace FirstPersonView;
+
+public enum HandsMode
 {
-    public enum HandsMode
-    {
-        Vanilla,
-        ThirdPerson,
-    }
+    Vanilla,
+    ThirdPerson,
 }

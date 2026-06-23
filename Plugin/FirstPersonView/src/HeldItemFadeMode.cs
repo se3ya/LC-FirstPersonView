@@ -1,8 +1,7 @@
-namespace FirstPersonView
+namespace FirstPersonView;
+
+public enum HeldItemFadeMode
 {
-    public enum HeldItemFadeMode
-    {
-        Dither,
-        Off,
-    }
+    Dither,
+    Off,
 }

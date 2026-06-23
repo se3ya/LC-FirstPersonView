@@ -1,65 +1,64 @@
-using System;
 using System.Reflection;
+using System;
 
-namespace FirstPersonView.Compat
+namespace FirstPersonView.Compat;
+
+internal static class TooManyEmotesCompat
 {
-    internal static class TooManyEmotesCompat
+    private static bool _initialized;
+    private static bool _isInstalled;
+
+    private static PropertyInfo? _firstPersonEmotesEnabledProperty;     // ThirdPersonEmoteController.firstPersonEmotesEnabled (static)
+    private static PropertyInfo? _emoteControllerLocalProperty;     // EmoteControllerPlayer.emoteControllerLocal (static)
+    private static MethodInfo? _isPerformingCustomEmoteMethod;      // EmoteController.IsPerformingCustomEmote()
+
+    public static void Initialize()
     {
-        private static bool _initialized;
-        private static bool _isInstalled;
+        if (_initialized)
+            return;
 
-        private static PropertyInfo? _firstPersonEmotesEnabledProperty;     // ThirdPersonEmoteController.firstPersonEmotesEnabled (static)
-        private static PropertyInfo? _emoteControllerLocalProperty;     // EmoteControllerPlayer.emoteControllerLocal (static)
-        private static MethodInfo? _isPerformingCustomEmoteMethod;      // EmoteController.IsPerformingCustomEmote()
+        _initialized = true;
+        _isInstalled = ConfigManager.EnableTooManyEmotesCompatibility.Value && TryResolveTypes();
 
-        public static void Initialize()
-        {
-            if (_initialized)
-                return;
+        if (_isInstalled)
+            Plugin.Log.LogInfo("TooManyEmotes detected.");
+    }
 
-            _initialized = true;
-            _isInstalled = ConfigManager.EnableTooManyEmotesCompatibility.Value && TryResolveTypes();
+    public static bool IsFirstPersonEmoteActive()
+    {
+        if (!_isInstalled
+            || _firstPersonEmotesEnabledProperty == null
+            || _emoteControllerLocalProperty == null
+            || _isPerformingCustomEmoteMethod == null)
+            return false;
 
-            if (_isInstalled)
-                Plugin.Log.LogInfo("TooManyEmotes detected.");
-        }
+        if (_firstPersonEmotesEnabledProperty.GetValue(null) is not true)
+            return false;
 
-        public static bool IsFirstPersonEmoteActive()
-        {
-            if (!_isInstalled
-                || _firstPersonEmotesEnabledProperty == null
-                || _emoteControllerLocalProperty == null
-                || _isPerformingCustomEmoteMethod == null)
-                return false;
+        object? controller = _emoteControllerLocalProperty.GetValue(null);
+        return controller != null && _isPerformingCustomEmoteMethod.Invoke(controller, null) is true;
+    }
 
-            if (_firstPersonEmotesEnabledProperty.GetValue(null) is not true)
-                return false;
+    private static bool TryResolveTypes()
+    {
+        Assembly? assembly = Reflection.FindAssembly("TooManyEmotes");
+        if (assembly == null)
+            return false;
 
-            object? controller = _emoteControllerLocalProperty.GetValue(null);
-            return controller != null && _isPerformingCustomEmoteMethod.Invoke(controller, null) is true;
-        }
+        Type? controllerType = assembly.GetType("TooManyEmotes.Patches.ThirdPersonEmoteController");
+        Type? emotePlayerType = assembly.GetType("TooManyEmotes.EmoteControllerPlayer");
+        if (controllerType == null || emotePlayerType == null)
+            return false;
 
-        private static bool TryResolveTypes()
-        {
-            Assembly? assembly = Reflection.FindAssembly("TooManyEmotes");
-            if (assembly == null)
-                return false;
+        _firstPersonEmotesEnabledProperty = controllerType.GetProperty(
+            "firstPersonEmotesEnabled", BindingFlags.Public | BindingFlags.Static);
+        _emoteControllerLocalProperty = emotePlayerType.GetProperty(
+            "emoteControllerLocal", BindingFlags.Public | BindingFlags.Static);
+        _isPerformingCustomEmoteMethod = emotePlayerType.GetMethod(
+            "IsPerformingCustomEmote", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
 
-            Type? controllerType = assembly.GetType("TooManyEmotes.Patches.ThirdPersonEmoteController");
-            Type? emotePlayerType = assembly.GetType("TooManyEmotes.EmoteControllerPlayer");
-            if (controllerType == null || emotePlayerType == null)
-                return false;
-
-            _firstPersonEmotesEnabledProperty = controllerType.GetProperty(
-                "firstPersonEmotesEnabled", BindingFlags.Public | BindingFlags.Static);
-            _emoteControllerLocalProperty = emotePlayerType.GetProperty(
-                "emoteControllerLocal", BindingFlags.Public | BindingFlags.Static);
-            _isPerformingCustomEmoteMethod = emotePlayerType.GetMethod(
-                "IsPerformingCustomEmote", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
-
-            return _firstPersonEmotesEnabledProperty != null
-                && _emoteControllerLocalProperty != null
-                && _isPerformingCustomEmoteMethod != null;
-        }
+        return _firstPersonEmotesEnabledProperty != null
+            && _emoteControllerLocalProperty != null
+            && _isPerformingCustomEmoteMethod != null;
     }
 }
