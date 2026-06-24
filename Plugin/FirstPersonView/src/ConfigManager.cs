@@ -12,9 +12,7 @@ public static class ConfigManager
     public static ConfigEntry<float> HandOffsetZ = null!;
 
     public static ConfigEntry<bool> EnableMoreCompanyCompatibility = null!;
-    public static ConfigEntry<bool> EnableModelReplacementCompatibility = null!;
     public static ConfigEntry<bool> EnableTooManyEmotesCompatibility = null!;
-    public static ConfigEntry<bool> ShowMoreCompanyCosmetics = null!;
     public static ConfigEntry<bool> ShowMoreCompanyHat = null!;
     public static ConfigEntry<bool> ShowMoreCompanyChest = null!;
     public static ConfigEntry<bool> ShowMoreCompanyHip = null!;
@@ -63,25 +61,11 @@ public static class ConfigManager
             "Show your MoreCompany cosmetics in first person when MoreCompany is installed."
         );
 
-        EnableModelReplacementCompatibility = config.Bind(
-            "1. Compatibility",
-            "Enable ModelReplacementAPI Compatibility",
-            true,
-            "Hide your replacement model's head in first person when ModelReplacementAPI is installed. Takes effect on restart."
-        );
-
         EnableTooManyEmotesCompatibility = config.Bind(
             "1. Compatibility",
             "Enable TooManyEmotes Compatibility",
             true,
             "Keep the camera on your head during a TooManyEmotes first-person emote. Takes effect on restart."
-        );
-
-        ShowMoreCompanyCosmetics = config.Bind(
-            "1. Compatibility",
-            "ShowCosmetics",
-            true,
-            "Master toggle for MoreCompany cosmetic visibility in first-person view."
         );
 
         ShowMoreCompanyHat = config.Bind(

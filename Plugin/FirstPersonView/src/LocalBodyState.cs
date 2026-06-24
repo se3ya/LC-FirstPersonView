@@ -44,7 +44,15 @@ internal sealed class LocalBodyState
     public Vector3 GuardedEyeDeviation;
     public Vector3 GuardedEyeVelocity;
     public float NeckGuardTail;
+    public float NeckGuardRelease;
+    public float NeckGuardFloorZ;
+    public float NeckGuardCrouchRestZ;
+    public float NeckGuardCrouchRestY;
+    public bool NeckGuardFloorActive;
     public bool NeckGuardInitialized;
+    public bool NeckGuardLatched;
+    public bool NeckGuardWasSwinging;
+    public bool NeckGuardEngaged;
     public Vector3 EyeAnchorLocal;
     public Vector3 EyeAnchorBoneLocal;
     public bool EyeAnchorCaptured;

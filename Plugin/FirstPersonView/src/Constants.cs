@@ -28,11 +28,14 @@ internal static class Constants
     public const float BobDampBlendTime = 0.12f;    // ramp time for the sprint/jump stabilizer
     public const float BobStabilizeTau = 0.2f;      // low pass time constant for the run/jump bob
 
-    public const float NeckGuardCalmTau = 0.015f;        // follow tau when not swinging
-    public const float NeckGuardSwingTau = 0.10f;        // follow tau during the swing
-    public const float NeckGuardSwingTail = 0.6f;        // keep the guard active this long (s)
-    public const float NeckGuardUpFollow = 0.6f;         // fraction of the reel ups `up` throw the eye follows
-    public const float NeckGuardDownFollow = 0.15f;      // fraction of a below rest dip the eye follows
+    public const float NeckGuardCalmTau = 0.015f;        // follow tau when not swinging (responsive)
+    public const float NeckGuardSwingTau = 0.12f;        // follow tau during the swing (smooths the guarded follow)
+    public const float NeckGuardSwingTail = 0.6f;        // keep the guard active this long after the swing (s)
+    public const float NeckGuardReleaseRamp = 0.8f;     // ease tau swing -> calm over this long
+    public const float NeckGuardUpFollow = 1f;         // fraction of the up throw the eye follows during a swing
+    public const float NeckGuardDownFollow = 0f;       // fraction of a below rest dip the eye follows during a swing
+    public const float NeckGuardCrouchSettled = 0.9f;    // only freeze the rest anchor once crouch blend passes this
+    public const float NeckGuardCrouchFloor = 0.35f;     // min forward deviation a stand -> crouch swing floors the eye at
 
     // camera
     public const float FollowStrengthVertical = 1f;     // follow the up/down bob fully
@@ -50,12 +53,12 @@ internal static class Constants
     public const float HoldingEyeOffsetUp = 0.07f;        // extra up while holding
     public const float HoldingBlendTime = 0.18f;          // ease the holding nudge in/out
 
-    public const float RunningEyeOffsetForward = 0.08f;   // extra forward push while running
+    public const float RunningEyeOffsetForward = 0.1f;   // extra forward push while running
     public const float RunningEyeOffsetUp = 0.05f;        // extra up while running
     public const float RunningBlendTime = 0.18f;          // ease the running nudge in/out
 
     // eye nudge while jumping
-    public const float JumpingEyeOffsetForward = 0.1f;   // extra forward push while jumping
+    public const float JumpingEyeOffsetForward = 0.13f;   // extra forward push while jumping
     public const float JumpingEyeOffsetUp = 0f;        // extra up while jumping
     public const float JumpingBlendTime = 0.18f;          // ease the jumping nudge in/out
 

@@ -47,6 +47,7 @@ internal static class CameraRig
 
         state.LadderBlend = Mathf.MoveTowards(
             state.LadderBlend, player.isClimbingLadder ? 1f : 0f, Time.deltaTime / Constants.LadderBlendTime);
+
         float forwardOffset = Mathf.Lerp(
             Constants.EyeOffsetForward, Constants.EyeOffsetForwardOnLadder, state.LadderBlend)
             + (state.HoldBlend * Constants.HoldingEyeOffsetForward)
@@ -178,36 +179,100 @@ internal static class CameraRig
             state.GuardedEyeDeviation = live;
             state.GuardedEyeVelocity = Vector3.zero;
             state.NeckGuardTail = 0f;
+            state.NeckGuardRelease = 0f;
+            state.NeckGuardLatched = false;
+            state.NeckGuardWasSwinging = false;
+            state.NeckGuardEngaged = false;
+            state.NeckGuardFloorActive = false;
+            state.NeckGuardCrouchRestZ = live.z;
+            state.NeckGuardCrouchRestY = live.y;
             state.NeckGuardInitialized = true;
             return live;
         }
 
         bool swinging = player.isCrouching && player.activatingItem;
+
+        if (swinging && !state.NeckGuardWasSwinging)
+            state.NeckGuardLatched = state.CrouchBlend >= Constants.NeckGuardCrouchSettled;
+        state.NeckGuardWasSwinging = swinging;
+
         if (swinging)
             state.NeckGuardTail = Constants.NeckGuardSwingTail;
         else if (state.NeckGuardTail > 0f)
             state.NeckGuardTail -= Time.deltaTime;
-        bool active = state.NeckGuardTail > 0f;
 
-        if (!active)
+        bool swingWindow = swinging || state.NeckGuardTail > 0f;
+        bool locked = state.NeckGuardLatched && player.isCrouching && swingWindow;
+
+        if (player.isCrouching && !swingWindow)
+        {
+            state.NeckGuardCrouchRestZ = live.z;
+            state.NeckGuardCrouchRestY = live.y;
+        }
+
+        bool crouchGuard = swingWindow && player.isCrouching && !state.NeckGuardLatched;
+        if (crouchGuard && !state.NeckGuardFloorActive)
+        {
+            state.NeckGuardFloorZ = Mathf.Max(state.NeckGuardCrouchRestZ, Constants.NeckGuardCrouchFloor);
+            state.NeckGuardFloorActive = true;
+        }
+        else if (!crouchGuard)
+            state.NeckGuardFloorActive = false;
+
+        if (state.NeckGuardEngaged && !locked && !crouchGuard)
+            state.NeckGuardRelease = Constants.NeckGuardReleaseRamp;
+        else if (state.NeckGuardRelease > 0f)
+            state.NeckGuardRelease -= Time.deltaTime;
+        state.NeckGuardEngaged = locked || crouchGuard;
+
+        if (!locked)
             state.SwingRest = live;
         Vector3 rest = state.SwingRest;
 
         Vector3 target = live;
-        if (active)
+        if (locked)
         {
             target.z = Mathf.Max(live.z, rest.z);
             if (swinging)
                 target.y = live.y >= rest.y
-                    ? rest.y + (live.y - rest.y) * Constants.NeckGuardUpFollow      // charging
+                    ? rest.y + ((live.y - rest.y) * Constants.NeckGuardUpFollow)
                     : rest.y + ((live.y - rest.y) * Constants.NeckGuardDownFollow);
             else
                 target.y = rest.y;
         }
+        else if (state.NeckGuardFloorActive)
+        {
+            target.z = Mathf.Max(live.z, state.NeckGuardFloorZ);
+            float restY = state.NeckGuardCrouchRestY;
+            target.y = swinging
+                ? (live.y >= restY
+                    ? restY + ((live.y - restY) * Constants.NeckGuardUpFollow)
+                    : restY + ((live.y - restY) * Constants.NeckGuardDownFollow))
+                : restY;
+        }
 
-        float tau = active ? Constants.NeckGuardSwingTau : Constants.NeckGuardCalmTau;
-        state.GuardedEyeDeviation = Vector3.SmoothDamp(
-            state.GuardedEyeDeviation, target, ref state.GuardedEyeVelocity, tau);
+        bool swingSmoothing = locked || (swingWindow && player.isCrouching);
+        float tau;
+        if (swingSmoothing)
+            tau = Constants.NeckGuardSwingTau;
+        else if (state.NeckGuardRelease > 0f)
+            tau = Mathf.Lerp(
+                Constants.NeckGuardCalmTau, Constants.NeckGuardSwingTau,
+                state.NeckGuardRelease / Constants.NeckGuardReleaseRamp);
+        else
+            tau = Constants.NeckGuardCalmTau;
+
+        float tauY = swingSmoothing ? Constants.NeckGuardSwingTau : Constants.NeckGuardCalmTau;
+
+        float vx = state.GuardedEyeVelocity.x;
+        float vy = state.GuardedEyeVelocity.y;
+        float vz = state.GuardedEyeVelocity.z;
+        state.GuardedEyeDeviation = new Vector3(
+            Mathf.SmoothDamp(state.GuardedEyeDeviation.x, target.x, ref vx, tau),
+            Mathf.SmoothDamp(state.GuardedEyeDeviation.y, target.y, ref vy, tauY),
+            Mathf.SmoothDamp(state.GuardedEyeDeviation.z, target.z, ref vz, tau));
+        state.GuardedEyeVelocity = new Vector3(vx, vy, vz);
+
         return state.GuardedEyeDeviation;
     }
 
@@ -246,6 +311,8 @@ internal static class CameraRig
         state.JumpBlend = 0f;
         state.NeckGuardInitialized = false;
         state.NeckGuardTail = 0f;
+        state.NeckGuardRelease = 0f;
+        state.NeckGuardFloorActive = false;
         state.DeviationSmoothInitialized = false;
         state.HasCameraTarget = false;
 

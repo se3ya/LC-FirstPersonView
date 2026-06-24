@@ -15,12 +15,11 @@
 - Renders players body in first person
 - Camera moves according to players body
 - Held items in third-person arms mode will start to dither when they get too close to the screen or cover most of it
-- Compatible with **MoreCompany**, **TooManyEmotes** and **ModelReplacementAPI**
+- Compatible with **MoreCompany** and **TooManyEmotes**
 
 ## Configuration
 
 - **Enable _MoreCompany_ Compatibility** - show your _MoreCompany_ cosmetics in first person when _MoreCompany_ is installed
-- **Enable _ModelReplacementAPI_ Compatibility** - hide your replacement models head in first person when _ModelReplacementAPI_ is installed.
 - **Enable _TooManyEmotes_ Compatibility** - Keep the camera on your head during a _TooManyEmotes_ first-person emote when _TooManyEmotes_ is installed.
 - **Show Cosmetics** - master toggle for your cosmetics in first person
 - **Show Hat** - false by default, may make some cosmetics clip into the camera

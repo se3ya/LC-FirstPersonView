@@ -57,22 +57,18 @@ internal static class LocalBodyViewController
         bool showBody = player.isPlayerControlled && !player.isPlayerDead;
         LocalBodyShown = showBody;
 
-        bool hasReplacement = showBody && ModelReplacementCompat.HasReplacement(player);
-
-        bool useVanillaArms = showBody && !hasReplacement && Players.IsActivelyHolding(player)
+        bool useVanillaArms = showBody && Players.IsActivelyHolding(player)
             && !player.inSpecialInteractAnimation
             && ConfigManager.Hands.Value == HandsMode.Vanilla;
 
-        if (!hasReplacement)
-            FirstPersonBody.ApplyBodyRendering(state, showBody, useVanillaArms);
+        FirstPersonBody.ApplyBodyRendering(state, showBody, useVanillaArms);
         FirstPersonBody.ApplyFirstPersonCameraLayer(state, showBody);
         HeldItemView.ApplyHolder(state, player, showBody, useVanillaArms);
 
-        if (showBody && !hasReplacement)
+        if (showBody)
             FirstPersonBody.HideHead(state, useVanillaArms);
         else
             FirstPersonBody.RestoreHead(state);
-        ModelReplacementCompat.SetLocalHeadHidden(player, hasReplacement);
 
         if (showBody && !VisorRig.IsImmersiveVisorPresent())
             VisorRig.StickToCamera(state);

@@ -78,8 +78,6 @@ internal static class MoreCompanyCompat
 
     private static bool ShouldShowCosmetic(object cosmetic, bool firstPersonArmsActive)
     {
-        if (!ConfigManager.ShowMoreCompanyCosmetics.Value)
-            return false;
 
         if (_cosmeticTypeField == null)
             return true;

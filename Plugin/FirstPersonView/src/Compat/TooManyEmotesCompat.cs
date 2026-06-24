@@ -18,9 +18,11 @@ internal static class TooManyEmotesCompat
             return;
 
         _initialized = true;
-        _isInstalled = ConfigManager.EnableTooManyEmotesCompatibility.Value && TryResolveTypes();
 
-        if (_isInstalled)
+        bool present = TryResolveTypes();
+        _isInstalled = present && ConfigManager.EnableTooManyEmotesCompatibility.Value;
+
+        if (present)
             Plugin.Log.LogInfo("TooManyEmotes detected.");
     }
 

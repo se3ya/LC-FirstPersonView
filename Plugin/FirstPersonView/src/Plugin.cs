@@ -27,7 +27,6 @@ public class Plugin : BaseUnityPlugin
 
         ConfigManager.Initialize(Config);
         MoreCompanyCompat.Initialize();
-        ModelReplacementCompat.Initialize();
         TooManyEmotesCompat.Initialize();
         _harmony.PatchAll();
 
