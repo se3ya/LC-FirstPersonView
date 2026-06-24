@@ -21,7 +21,6 @@
 
 - **Enable _MoreCompany_ Compatibility** - show your _MoreCompany_ cosmetics in first person when _MoreCompany_ is installed
 - **Enable _TooManyEmotes_ Compatibility** - Keep the camera on your head during a _TooManyEmotes_ first-person emote when _TooManyEmotes_ is installed.
-- **Show Cosmetics** - master toggle for your cosmetics in first person
 - **Show Hat** - false by default, may make some cosmetics clip into the camera
 - **Show Chest, Show Hip, Show Right Lower Arm, Show Left Shin, Show Right Shin** - toggle per slot
 - **Fade mode**:
