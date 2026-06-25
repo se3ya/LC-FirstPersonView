@@ -43,6 +43,7 @@ public static class VehicleCompat
         if (hand == null)
             return;
 
+        // this could absolutely be improved, to fix numerous issues with the vanilla key, but i'm not touching this (for now)
         Transform key = __instance.keyObject.transform;
         key.rotation = hand.rotation * Quaternion.Euler(Constants.CruiserKeyRotationOffset);
         key.position = hand.position + (hand.rotation * Constants.CruiserKeyPositionOffset);
