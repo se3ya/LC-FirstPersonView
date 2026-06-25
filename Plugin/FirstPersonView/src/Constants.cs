@@ -27,6 +27,8 @@ internal static class Constants
     public const float LadderBlendTime = 0.08f;     // ease the forward-eye offset on/off ladders
     public const float BobDampBlendTime = 0.12f;    // ramp time for the sprint/jump stabilizer
     public const float BobStabilizeTau = 0.2f;      // low pass time constant for the run/jump bob
+    public const float DisableHeadBobTau = 1f;    // low pass time for the no bob eye
+    public const float DisableHeadBobBlendTime = 0.15f;  // ramp the no bob eye on/off
 
     public const float NeckGuardCalmTau = 0.015f;        // follow tau when not swinging (responsive)
     public const float NeckGuardSwingTau = 0.12f;        // follow tau during the swing (smooths the guarded follow)
@@ -42,11 +44,11 @@ internal static class Constants
     public const float FollowStrengthHorizontal = 1f;       // follow forward/side fully
     public const float SprintBobReduction = 0.6f;     // fully stabilize the run/jump bob
     public const float MaxFollowOffset = 0.5f;      // how far the follow can move the eye
-    public const float EyeOffsetForward = 0.11f;    // push the eye forward so the neck stays behind
+    public const float EyeOffsetForward = 0.13f;    // push the eye forward so the neck stays behind
     public const float EyeOffsetForwardOnLadder = 0f;
     public const float EyeOffsetUp = 0f;
     public const float EyeOffsetRight = 0f;
-    public const float CrouchEyeOffsetUp = 0.15f;   // raise the eye while crouching so it doesn't sink into the neck
+    public const float CrouchEyeOffsetUp = 0.12f;   // raise the eye while crouching so it doesn't sink into the neck
 
     // eye nudge while holding
     public const float HoldingEyeOffsetForward = 0.15f;   // extra forward push while holding
