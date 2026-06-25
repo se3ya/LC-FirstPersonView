@@ -39,17 +39,6 @@ internal static class CameraRig
         state.JumpBlend = Mathf.MoveTowards(
             state.JumpBlend, (player.isJumping || player.isFallingFromJump) ? 1f : 0f, Time.deltaTime / Constants.JumpingBlendTime);
 
-        state.MoveBlend = Mathf.MoveTowards(
-            state.MoveBlend, (player.isWalking || player.isSprinting) ? 1f : 0f, Time.deltaTime / 0.2f);
-
-        float lookDownOffset = 0f;
-        if (ConfigManager.DisableHeadBob.Value)
-        {
-            float lookDownAngle = Mathf.Max(0f, -camTransform.forward.y);
-            float offsetMultiplier = Mathf.Lerp(0.2f, 0.35f, state.MoveBlend);
-            lookDownOffset = lookDownAngle * offsetMultiplier;
-        }
-
         float upOffset = Constants.EyeOffsetUp
             + (state.CrouchBlend * Constants.CrouchEyeOffsetUp)
             + (state.HoldBlend * Constants.HoldingEyeOffsetUp)
@@ -63,8 +52,7 @@ internal static class CameraRig
             Constants.EyeOffsetForward, Constants.EyeOffsetForwardOnLadder, state.LadderBlend)
             + (state.HoldBlend * Constants.HoldingEyeOffsetForward)
             + (state.RunBlend * Constants.RunningEyeOffsetForward)
-            + (state.JumpBlend * Constants.JumpingEyeOffsetForward)
-            + lookDownOffset;
+            + (state.JumpBlend * Constants.JumpingEyeOffsetForward);
 
         Vector3 baseWorld = parent != null
             ? parent.TransformPoint(state.CameraBaseLocalPosition)
@@ -147,16 +135,10 @@ internal static class CameraRig
         Vector3 fullFollow = bone.position + (yawRotation * state.EyeAnchorLocal);
         Vector3 deviationLocal = Quaternion.Inverse(yawRotation) * (fullFollow - baseWorld);
 
-        if (!ConfigManager.DisableHeadBob.Value)
-        {
-            deviationLocal.x *= Constants.FollowStrengthHorizontal;
-            deviationLocal.z *= Constants.FollowStrengthHorizontal;
-            deviationLocal.y *= Constants.FollowStrengthVertical;
-        }
-        else
-        {
-            deviationLocal = Vector3.zero;
-        }
+        deviationLocal.x *= Constants.FollowStrengthHorizontal;
+        deviationLocal.z *= Constants.FollowStrengthHorizontal;
+        deviationLocal.y *= Constants.FollowStrengthVertical;
+        deviationLocal.y = DampHeadBob(state, player, deviationLocal.y);
 
         deviationLocal = StabilizeSprintBob(state, player, deviationLocal);
         deviationLocal = NeckGuardedFollow(state, player, deviationLocal);
@@ -165,6 +147,29 @@ internal static class CameraRig
             deviationLocal = deviationLocal.normalized * Constants.MaxFollowOffset;
 
         return baseWorld + (yawRotation * deviationLocal);
+    }
+
+    private static float DampHeadBob(LocalBodyState state, PlayerControllerB player, float rawY)
+    {
+        if (!state.DisableBobSmoothInitialized)
+        {
+            state.DisableBobSmoothedY = rawY;
+            state.DisableBobSmoothInitialized = true;
+        }
+        else
+        {
+            float t = 1f - Mathf.Exp(-Time.deltaTime / Constants.DisableHeadBobTau);
+            state.DisableBobSmoothedY = Mathf.Lerp(state.DisableBobSmoothedY, rawY, t);
+        }
+
+        bool removeBob = ConfigManager.DisableHeadBob.Value
+            && !player.isCrouching
+            && state.CrouchBlend <= 0f
+            && (player.isWalking || player.isSprinting || player.isJumping || player.isFallingFromJump);
+        state.DisableBobBlend = Mathf.MoveTowards(
+            state.DisableBobBlend, removeBob ? 1f : 0f, Time.deltaTime / Constants.DisableHeadBobBlendTime);
+
+        return Mathf.Lerp(rawY, state.DisableBobSmoothedY, state.DisableBobBlend);
     }
 
     private static Vector3 StabilizeSprintBob(
@@ -328,12 +333,13 @@ internal static class CameraRig
         state.HoldBlend = 0f;
         state.RunBlend = 0f;
         state.JumpBlend = 0f;
-        state.MoveBlend = 0f;
         state.NeckGuardInitialized = false;
         state.NeckGuardTail = 0f;
         state.NeckGuardRelease = 0f;
         state.NeckGuardFloorActive = false;
         state.DeviationSmoothInitialized = false;
+        state.DisableBobSmoothInitialized = false;
+        state.DisableBobBlend = 0f;
         state.HasCameraTarget = false;
 
         if (!state.CameraOffsetApplied)
