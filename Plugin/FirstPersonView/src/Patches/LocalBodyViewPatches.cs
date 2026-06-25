@@ -19,7 +19,7 @@ internal static class LocalBodyViewPatches
     {
         if (StartOfRound.Instance?.localPlayerController == __instance)
         {
-            VehicleCompat.EnsurePatched();
+            // you do not need to do "ensure patched" for the vehicle controller, just do a harmony postfix
             LocalBodyViewController.ResetAllStates();
         }
     }
