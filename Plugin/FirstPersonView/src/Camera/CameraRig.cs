@@ -43,7 +43,7 @@ internal static class CameraRig
         if (ConfigManager.DisableHeadBob.Value)
         {
             float lookDownAngle = Mathf.Max(0f, -camTransform.forward.y);
-            lookDownOffset = lookDownAngle * 0.4f;
+            lookDownOffset = lookDownAngle * 0.3f;
         }
 
         float upOffset = Constants.EyeOffsetUp
