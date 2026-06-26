@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Reflection;
-using System;
-
 using GameNetcodeStuff;
 using HarmonyLib;
 using UnityEngine;
@@ -9,7 +5,6 @@ using UnityEngine;
 namespace FirstPersonView.Compat;
 
 // keeps cruiser ignition key in the first-person bodys hands instead of the camera anchored arms
-// needs improvements
 
 [HarmonyPatch(typeof(VehicleController))]
 public static class VehicleCompat
@@ -53,6 +48,6 @@ public static class VehicleCompat
     {
         // please stop using hilariously expensive reflection every frame, i have added the bepinex assembly publiciser 
         // which allows you to access private methods/funcs/etc, this is miles better for performance
-        return vehicle.keyIgnitionCoroutine != null
+        return vehicle.keyIgnitionCoroutine != null;
     }
 }
