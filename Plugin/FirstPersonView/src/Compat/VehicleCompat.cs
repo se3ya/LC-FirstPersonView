@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Reflection;
-using System;
-
 using GameNetcodeStuff;
 using HarmonyLib;
 using UnityEngine;
@@ -9,62 +5,20 @@ using UnityEngine;
 namespace FirstPersonView.Compat;
 
 // keeps cruiser ignition key in the first-person bodys hands instead of the camera anchored arms
-// needs improvements
-internal static class VehicleCompat
+
+[HarmonyPatch(typeof(VehicleController))]
+public static class VehicleCompat
 {
-    private static bool _patched;
-    private static FieldInfo? _ignitionCoroutineField;
-
-    public static void EnsurePatched()
+    [HarmonyPatch(nameof(VehicleController.Update))]
+    [HarmonyPostfix]
+    public static void Update_Key_Postfix(VehicleController __instance)
     {
-        if (_patched)
+        if (!__instance.IsSpawned)
             return;
-
-        _patched = true;
-
-        HarmonyMethod postfix = new(typeof(VehicleCompat), nameof(KeyPostfix));
-        foreach (Type type in CollectVehicleTypes())
-        {
-            TryPatch(type, "Update", postfix);
-            TryPatch(type, "LateUpdate", postfix);
-        }
-    }
-
-    private static void TryPatch(Type type, string methodName, HarmonyMethod postfix)
-    {
-        MethodInfo? method = type.GetMethod(
-            methodName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-        if (method == null)
-            return;
-
-        try
-        {
-            Plugin.Harmony.Patch(method, postfix: postfix);
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.LogWarning($"Vehicle key compat: could not patch {type.Name}.{methodName}. {ex.Message}");
-        }
-    }
-
-    private static IEnumerable<Type> CollectVehicleTypes()
-    {
-        Type baseType = typeof(VehicleController);
-        yield return baseType;
-
-        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            foreach (Type type in assembly.GetLoadableTypes())
-            {
-                if (type != baseType && baseType.IsAssignableFrom(type))
-                    yield return type;
-            }
-        }
-    }
-
-    private static void KeyPostfix(VehicleController __instance)
-    {
+        // do not attemot to patch custom vehicles, the vanilla CC has an ID of 0, this will also "just work" out the box for the Version-55 Company Cruiser mod, the ScanVan and the Company Hauler without soft dep, as they uses the 'new' keyword.
+        // this is good future proofing if you ever patch anything VehicleController, incase a creator uses base methods, and you only want to touch the vanilla CC
+        if (__instance.vehicleID != 0) 
+            return;   
         if (!LocalBodyViewController.LocalBodyShown)
             return;
         if (!__instance.keyIsInDriverHand || !__instance.localPlayerInControl)
@@ -84,6 +38,7 @@ internal static class VehicleCompat
         if (hand == null)
             return;
 
+        // this could absolutely be improved, to fix numerous issues with the vanilla key, but i'm not touching this (for now)
         Transform key = __instance.keyObject.transform;
         key.rotation = hand.rotation * Quaternion.Euler(Constants.CruiserKeyRotationOffset);
         key.position = hand.position + (hand.rotation * Constants.CruiserKeyPositionOffset);
@@ -91,8 +46,8 @@ internal static class VehicleCompat
 
     private static bool IsIgnitionInProgress(VehicleController vehicle)
     {
-        _ignitionCoroutineField ??= typeof(VehicleController).GetField(
-            "keyIgnitionCoroutine", BindingFlags.Instance | BindingFlags.NonPublic);
-        return _ignitionCoroutineField != null && _ignitionCoroutineField.GetValue(vehicle) != null;
+        // please stop using hilariously expensive reflection every frame, i have added the bepinex assembly publiciser 
+        // which allows you to access private methods/funcs/etc, this is miles better for performance
+        return vehicle.keyIgnitionCoroutine != null;
     }
 }
