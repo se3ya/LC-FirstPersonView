@@ -23,14 +23,10 @@ public static class VehicleCompat
             return;
         if (!__instance.keyIsInDriverHand || !__instance.localPlayerInControl)
             return;
-        if (__instance.keyObject == null)
+        // when key is inside the ingition , let vanilla own its position/rotation
+        if (__instance.keyIsInIgnition)
             return;
-
-        // twist/ pull the key during steady driving the key sits in the ignition slot.
-        // it animates it from the hand
-        // into the slot and turns it
-        // palm and the ignition never visually turns
-        if (IsIgnitionInProgress(__instance))
+        if (__instance.keyObject == null)
             return;
 
         PlayerControllerB driver = __instance.currentDriver;
@@ -42,12 +38,5 @@ public static class VehicleCompat
         Transform key = __instance.keyObject.transform;
         key.rotation = hand.rotation * Quaternion.Euler(Constants.CruiserKeyRotationOffset);
         key.position = hand.position + (hand.rotation * Constants.CruiserKeyPositionOffset);
-    }
-
-    private static bool IsIgnitionInProgress(VehicleController vehicle)
-    {
-        // please stop using hilariously expensive reflection every frame, i have added the bepinex assembly publiciser 
-        // which allows you to access private methods/funcs/etc, this is miles better for performance
-        return vehicle.keyIgnitionCoroutine != null;
     }
 }
