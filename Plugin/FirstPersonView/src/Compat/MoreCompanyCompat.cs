@@ -78,7 +78,6 @@ internal static class MoreCompanyCompat
 
     private static bool ShouldShowCosmetic(object cosmetic, bool firstPersonArmsActive)
     {
-
         if (_cosmeticTypeField == null)
             return true;
 
