@@ -57,9 +57,25 @@ internal static class LocalBodyViewController
         bool showBody = player.isPlayerControlled && !player.isPlayerDead;
         LocalBodyShown = showBody;
 
-        bool useVanillaArms = showBody && Players.IsActivelyHolding(player)
+        bool holdingArms = Players.IsActivelyHolding(player)
             && !player.inSpecialInteractAnimation
             && ConfigManager.Hands.Value == HandsMode.Vanilla;
+
+        bool movementArms;
+        if (showBody
+            && ConfigManager.VanillaArmsOnMovement.Value
+            && !Players.IsActivelyHolding(player)
+            && !player.inSpecialInteractAnimation)
+        {
+            movementArms = MovementArmsGate.Update(state, player, Time.deltaTime);
+        }
+        else
+        {
+            MovementArmsGate.Reset(state);
+            movementArms = false;
+        }
+
+        bool useVanillaArms = showBody && (holdingArms || movementArms);
 
         FirstPersonBody.ApplyBodyRendering(state, showBody, useVanillaArms);
         FirstPersonBody.ApplyFirstPersonCameraLayer(state, showBody);

@@ -59,4 +59,6 @@ internal sealed class LocalBodyState
     public Vector3 EyeAnchorLocal;
     public Vector3 EyeAnchorBoneLocal;
     public bool EyeAnchorCaptured;
+    public bool MovementArmsActive;
+    public float MovementArmsTimer;
 }

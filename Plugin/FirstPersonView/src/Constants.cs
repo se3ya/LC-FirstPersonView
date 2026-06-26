@@ -30,6 +30,10 @@ internal static class Constants
     public const float DisableHeadBobTau = 1f;    // low pass time for the no bob eye
     public const float DisableHeadBobBlendTime = 0.15f;  // ramp the no bob eye on/off
 
+    // vanilla arms on movement
+    public const float ArmSwapEngageDelay = 0.05f;   // qualifying movement before the FP arms engage
+    public const float ArmSwapReleaseDelay = 0.25f;  // non qualifying before reverting to body arms
+
     public const float NeckGuardCalmTau = 0.015f;        // follow tau when not swinging (responsive)
     public const float NeckGuardSwingTau = 0.12f;        // follow tau during the swing (smooths the guarded follow)
     public const float NeckGuardSwingTail = 0.6f;        // keep the guard active this long after the swing (s)

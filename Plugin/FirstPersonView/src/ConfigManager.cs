@@ -7,6 +7,7 @@ public static class ConfigManager
     public static ConfigEntry<HeldItemFadeMode> HeldItemFadeStyle = null!;
 
     public static ConfigEntry<HandsMode> Hands = null!;
+    public static ConfigEntry<bool> VanillaArmsOnMovement = null!;
     public static ConfigEntry<ItemDitherMode> ItemDither = null!;
 
     public static ConfigEntry<float> HandOffsetZ = null!;
@@ -111,10 +112,17 @@ public static class ConfigManager
             "ThirdPerson: the body own arms hold the item, more consistent body, but with known issues."
         );
 
+        VanillaArmsOnMovement = config.Bind(
+            "3. Hands",
+            "Vanilla Arms While Moving",
+            true,
+            "When empty hands, show the vanilla first-person arms with their sprint/crouch/jump animations, shows the third-person body arms while walking or idle."
+        );
+
         DisableHeadBob = config.Bind(
             "4. Camera",
             "DisableHeadBob",
-            false,
+            true,
             "Disable head bobbing from walking and running animations."
         );
     }
