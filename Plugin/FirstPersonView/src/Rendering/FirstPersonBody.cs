@@ -55,7 +55,13 @@ internal static class FirstPersonBody
     {
         fpArms = player.thisPlayerModelArms;
         fpArmsIntended = enabled;
-        if (fpArms != null && fpArms.enabled != enabled)
+        if (fpArms == null)
+            return;
+
+        if (fpArms.motionVectorGenerationMode != MotionVectorGenerationMode.ForceNoMotion)
+            fpArms.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+
+        if (fpArms.enabled != enabled)
             fpArms.enabled = enabled;
     }
 
