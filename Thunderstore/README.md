@@ -27,11 +27,11 @@
   - *Dither (default)*: Held item will start to dither when it is close to or filling the players camera
   - *Off*: Disables dithering
 - **Item Dither**:
-  - *Vanilla (default)*: Held item will dither for vanilla hands mode
-  - *Third Person*: Held item will dither for third person hands mode
+  - *Vanilla*: Held item will dither for vanilla hands mode
+  - *Third Person (default)*: Held item will dither for third person hands mode
 - **Hand offset Z** - Vanilla first-person arms offset
 - **Disable Head Bob** - true by default, mostly reduceds the camera from following the up/down head bob when walking, running and jumping
-- **Vanilla Arms While Moving** - true by default, shows the vanilla first-person arms with their sprint/crouch/jump animations when hands are empty.
+- **Vanilla Arms While Sprinting / Crouching / Jumping / Walking / Emoting / Near Wall** - each true by default, shows the vanilla first-person arms with their matching animation when hands are empty; disable any of them individually to keep the third-person body arms instead.
 
 ## Credits
 

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-02
+
+### Changed
+
+- Split _Vanilla Arms While Moving_ into separate toggles
+- Improved camera forward pushing
+- Improved wall collide
+
+### Fixed
+
+- Motion blur on vanilla arms
+- Players body not rendering in cameras
+- Neck and shoulder holes visible when arms are hidden
+
 ## [1.0.2] - 2026-06-26
 
 ### Changed
