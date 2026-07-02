@@ -14,6 +14,7 @@ internal sealed class LocalBodyState
     public bool OriginalBodyMeshCaptured;
     public bool HeadHidden;
     public SkinnedMeshRenderer? ShadowProxy;
+    public LODGroup? PlayerLodGroup;
 
     public Transform? LeftArmBone;
     public Transform? RightArmBone;

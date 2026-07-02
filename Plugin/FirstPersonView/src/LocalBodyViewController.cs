@@ -147,6 +147,7 @@ internal static class LocalBodyViewController
         state.RightArmBone = FindBodyBone(player, Constants.RightArmBoneName);
 
         state.BodyRenderer = player.thisPlayerModel;
+        state.PlayerLodGroup = player.GetComponentInChildren<LODGroup>();
         CaptureOriginalBodyMesh(state);
 
         state.LocalVisor = player.localVisor;

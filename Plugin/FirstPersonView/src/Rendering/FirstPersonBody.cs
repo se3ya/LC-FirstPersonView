@@ -15,8 +15,8 @@ internal static class FirstPersonBody
     private static bool hideArmsInFirstPerson;
     private static Camera? hideCamera;
     private static bool hideActive;
-    private static SkinnedMeshRenderer? fpArms;   // the vanilla first-person arms; shown on the local camera only
-    private static bool fpArmsIntended;            // their enabled state on the local camera
+    private static SkinnedMeshRenderer? fpArms;
+    private static bool fpArmsIntended;
 
     public static void ApplyBodyRendering(LocalBodyState state, bool showBody, bool useVanillaArms)
     {
@@ -32,7 +32,12 @@ internal static class FirstPersonBody
                     player.thisPlayerModel.enabled = true;
                 if (player.thisPlayerModel.shadowCastingMode != ShadowCastingMode.On)
                     player.thisPlayerModel.shadowCastingMode = ShadowCastingMode.On;
+                if (player.thisPlayerModel.motionVectorGenerationMode != MotionVectorGenerationMode.ForceNoMotion)
+                    player.thisPlayerModel.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
             }
+
+            if (state.PlayerLodGroup != null && state.PlayerLodGroup.enabled)
+                state.PlayerLodGroup.enabled = false;
 
             if (player.thisPlayerModelLOD1 != null && player.thisPlayerModelLOD1.enabled)
                 player.thisPlayerModelLOD1.enabled = false;
@@ -106,7 +111,6 @@ internal static class FirstPersonBody
         if (body.sharedMesh != original)
             body.sharedMesh = original;
 
-        // if armless build fails fall back to head only
         headlessArmlessMesh = hideArms
             ? MeshSurgery.GetOrCreateHeadlessArmlessMesh(original, body, state.HeadBone, state.LeftArmBone, state.RightArmBone)
             : null;
