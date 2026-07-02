@@ -1,0 +1,1 @@
+Make cosmetics visible in TooManyEmotes and cameras
