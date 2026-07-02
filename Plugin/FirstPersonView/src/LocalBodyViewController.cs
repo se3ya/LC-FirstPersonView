@@ -63,7 +63,6 @@ internal static class LocalBodyViewController
 
         bool movementArms;
         if (showBody
-            && ConfigManager.VanillaArmsOnMovement.Value
             && !Players.IsActivelyHolding(player)
             && !player.inSpecialInteractAnimation)
         {

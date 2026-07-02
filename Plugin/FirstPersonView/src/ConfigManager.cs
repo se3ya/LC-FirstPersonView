@@ -7,7 +7,12 @@ public static class ConfigManager
     public static ConfigEntry<HeldItemFadeMode> HeldItemFadeStyle = null!;
 
     public static ConfigEntry<HandsMode> Hands = null!;
-    public static ConfigEntry<bool> VanillaArmsOnMovement = null!;
+    public static ConfigEntry<bool> VanillaArmsWhileSprinting = null!;
+    public static ConfigEntry<bool> VanillaArmsWhileCrouching = null!;
+    public static ConfigEntry<bool> VanillaArmsWhileJumping = null!;
+    public static ConfigEntry<bool> VanillaArmsWhileWalking = null!;
+    public static ConfigEntry<bool> VanillaArmsWhileEmoting = null!;
+    public static ConfigEntry<bool> VanillaArmsNearWall = null!;
     public static ConfigEntry<ItemDitherMode> ItemDither = null!;
 
     public static ConfigEntry<float> HandOffsetZ = null!;
@@ -112,11 +117,46 @@ public static class ConfigManager
             "ThirdPerson: the body own arms hold the item, more consistent body, but with known issues."
         );
 
-        VanillaArmsOnMovement = config.Bind(
+        VanillaArmsWhileSprinting = config.Bind(
             "3. Hands",
-            "Vanilla Arms While Moving",
+            "Vanilla Arms While Sprinting",
             true,
-            "When empty hands, show the vanilla first-person arms with their sprint/crouch/jump animations, shows the third-person body arms while walking or idle."
+            "Show vanilla first-person arms while sprinting."
+        );
+
+        VanillaArmsWhileCrouching = config.Bind(
+            "3. Hands",
+            "Vanilla Arms While Crouching",
+            true,
+            "Show vanilla first-person arms while crouching."
+        );
+
+        VanillaArmsWhileJumping = config.Bind(
+            "3. Hands",
+            "Vanilla Arms While Jumping",
+            true,
+            "Show vanilla first-person arms while jumping or falling."
+        );
+
+        VanillaArmsWhileWalking = config.Bind(
+            "3. Hands",
+            "Vanilla Arms While Walking",
+            true,
+            "Show vanilla first-person arms while walking."
+        );
+
+        VanillaArmsWhileEmoting = config.Bind(
+            "3. Hands",
+            "Vanilla Arms While Emoting",
+            true,
+            "Show vanilla first-person arms while performing an emote (dance, point)."
+        );
+
+        VanillaArmsNearWall = config.Bind(
+            "3. Hands",
+            "Vanilla Arms Near Wall",
+            true,
+            "Show vanilla first-person arms when a wall is close and the body extends its hands."
         );
 
         DisableHeadBob = config.Bind(

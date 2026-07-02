@@ -2,15 +2,19 @@ using GameNetcodeStuff;
 
 namespace FirstPersonView;
 
-// decides whether vanilla first-person arms should show for the third-person body arms
 internal static class MovementArmsGate
 {
+    private const float WallWeightThreshold = 0.01f;
+
     public static bool Update(LocalBodyState state, PlayerControllerB player, float deltaTime)
     {
-        bool qualifies = player.isSprinting
-            || player.isCrouching
-            || player.isJumping
-            || player.isFallingFromJump;
+        bool qualifies =
+            (ConfigManager.VanillaArmsWhileSprinting.Value && player.isSprinting)
+            || (ConfigManager.VanillaArmsWhileCrouching.Value && player.isCrouching)
+            || (ConfigManager.VanillaArmsWhileJumping.Value && (player.isJumping || player.isFallingFromJump))
+            || (ConfigManager.VanillaArmsWhileWalking.Value && player.isWalking && !player.isSprinting)
+            || (ConfigManager.VanillaArmsWhileEmoting.Value && player.performingEmote)
+            || (ConfigManager.VanillaArmsNearWall.Value && player.handsOnWallWeight > WallWeightThreshold);
 
         if (qualifies == state.MovementArmsActive)
         {
