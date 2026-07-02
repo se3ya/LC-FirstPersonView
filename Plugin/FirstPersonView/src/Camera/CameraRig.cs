@@ -48,8 +48,14 @@ internal static class CameraRig
         state.LadderBlend = Mathf.MoveTowards(
             state.LadderBlend, player.isClimbingLadder ? 1f : 0f, Time.deltaTime / Constants.LadderBlendTime);
 
+        float lookDown = Vector3.Dot(camTransform.forward, -up);
+        float lookDownForward = Mathf.SmoothStep(0f, 1f,
+            Mathf.InverseLerp(Constants.LookDownForwardStart, Constants.LookDownForwardFull, lookDown))
+            * Constants.LookDownEyeOffsetForward;
+
         float forwardOffset = Mathf.Lerp(
             Constants.EyeOffsetForward, Constants.EyeOffsetForwardOnLadder, state.LadderBlend)
+            + lookDownForward
             + (state.HoldBlend * Constants.HoldingEyeOffsetForward)
             + (state.RunBlend * Constants.RunningEyeOffsetForward)
             + (state.JumpBlend * Constants.JumpingEyeOffsetForward);
@@ -60,13 +66,17 @@ internal static class CameraRig
 
         Vector3 anchorWorld = FollowBodyAnchor(state, player, baseWorld, yawRotation);
 
-        Vector3 target = anchorWorld
-            + (flatForward * forwardOffset)
-            + (flatRight * Constants.EyeOffsetRight)
-            + (up * upOffset);
+        Vector3 toAnchor = anchorWorld - baseWorld;
+        float totalForward = Vector3.Dot(toAnchor, flatForward) + forwardOffset;
+        float totalRight = Vector3.Dot(toAnchor, flatRight) + Constants.EyeOffsetRight;
+        float totalUp = Vector3.Dot(toAnchor, up) + upOffset;
 
-        if (Constants.EnableWallCollision)
-            target = ResolveWallCollision(baseWorld, target);
+        totalForward = ClampTravelToWall(
+            baseWorld, flatForward, totalForward,
+            Constants.WallCollisionForwardProbeRadius, Constants.WallCollisionForwardMargin);
+
+        Vector3 horizontalPoint = baseWorld + (flatForward * totalForward) + (flatRight * totalRight);
+        Vector3 target = ResolveVerticalClearance(horizontalPoint, up, totalUp);
 
         camTransform.position = target;
         state.LastCameraTargetLocal = parent != null ? parent.InverseTransformPoint(target) : target;
@@ -109,7 +119,6 @@ internal static class CameraRig
         Transform cam = camera.transform;
         arms.position += cam.position - container.position;
 
-        // nudge arms forward off the eye so the hands sit at a comfortable position
         float forward = ConfigManager.HandOffsetZ.Value;
         if (forward != 0f)
             arms.position += cam.forward * forward;
@@ -165,7 +174,7 @@ internal static class CameraRig
         bool removeBob = ConfigManager.DisableHeadBob.Value
             && !player.isCrouching
             && state.CrouchBlend <= 0f
-            && (player.isWalking || player.isSprinting || player.isJumping || player.isFallingFromJump);
+            && (player.isWalking || player.isSprinting || player.isJumping || player.isFallingFromJump || player.isClimbingLadder);
         state.DisableBobBlend = Mathf.MoveTowards(
             state.DisableBobBlend, removeBob ? 1f : 0f, Time.deltaTime / Constants.DisableHeadBobBlendTime);
 
@@ -194,7 +203,6 @@ internal static class CameraRig
         return Vector3.Lerp(deviationLocal, state.SmoothedDeviationLocal, damp);
     }
 
-    // holds the eye forward of the neck through a crouched swing
     private static Vector3 NeckGuardedFollow(LocalBodyState state, PlayerControllerB player, Vector3 live)
     {
         if (!state.NeckGuardInitialized)
@@ -300,29 +308,27 @@ internal static class CameraRig
         return state.GuardedEyeDeviation;
     }
 
-    private static Vector3 ResolveWallCollision(Vector3 origin, Vector3 desired)
+    private static float ClampTravelToWall(Vector3 origin, Vector3 dir, float distance, float radius, float margin)
     {
         StartOfRound? sor = StartOfRound.Instance;
-        if (sor == null)
-            return desired;
-
-        Vector3 delta = desired - origin;
-        float distance = delta.magnitude;
-        if (distance < 1e-4f)
-            return desired;
-
-        Vector3 direction = delta / distance;
-        float radius = Mathf.Max(0.01f, Constants.WallCollisionRadius);
+        if (sor == null || distance <= 0f)
+            return distance;
 
         if (Physics.SphereCast(
-                origin, radius, direction, out RaycastHit hit, distance,
+                origin, Mathf.Max(0.01f, radius), dir, out RaycastHit hit, distance + margin,
                 sor.collidersAndRoomMask, QueryTriggerInteraction.Ignore))
         {
-            float allowed = Mathf.Clamp(hit.distance, 0f, distance);
-            return origin + (direction * allowed);
+            return Mathf.Max(0f, hit.distance - margin);
         }
 
-        return desired;
+        return distance;
+    }
+
+    private static Vector3 ResolveVerticalClearance(Vector3 horizontalPoint, Vector3 up, float totalUp)
+    {
+        Vector3 dir = totalUp >= 0f ? up : -up;
+        float travel = ClampTravelToWall(horizontalPoint, dir, Mathf.Abs(totalUp), Constants.WallCollisionRadius, 0f);
+        return horizontalPoint + (dir * travel);
     }
 
     public static void RestoreOffset(LocalBodyState state)

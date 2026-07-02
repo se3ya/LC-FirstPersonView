@@ -48,14 +48,14 @@ internal static class Constants
     public const float FollowStrengthHorizontal = 1f;       // follow forward/side fully
     public const float SprintBobReduction = 0.6f;     // fully stabilize the run/jump bob
     public const float MaxFollowOffset = 0.5f;      // how far the follow can move the eye
-    public const float EyeOffsetForward = 0.13f;    // push the eye forward so the neck stays behind
+    public const float EyeOffsetForward = 0f;    // push the eye forward so the neck stays behind
     public const float EyeOffsetForwardOnLadder = 0f;
     public const float EyeOffsetUp = 0f;
     public const float EyeOffsetRight = 0f;
-    public const float CrouchEyeOffsetUp = 0.12f;   // raise the eye while crouching so it doesn't sink into the neck
+    public const float CrouchEyeOffsetUp = 0f;   // raise the eye while crouching so it doesn't sink into the neck
 
     // eye nudge while holding
-    public const float HoldingEyeOffsetForward = 0.15f;   // extra forward push while holding
+    public const float HoldingEyeOffsetForward = 0.08f;   // extra forward push while holding
     public const float HoldingEyeOffsetUp = 0.07f;        // extra up while holding
     public const float HoldingBlendTime = 0.18f;          // ease the holding nudge in/out
 
@@ -69,8 +69,13 @@ internal static class Constants
     public const float JumpingBlendTime = 0.18f;          // ease the jumping nudge in/out
 
     // camera wall collision
-    public const bool EnableWallCollision = true;
-    public const float WallCollisionRadius = 0.11f;   // clearance the eye keeps from walls
+    public const float WallCollisionRadius = 0.1f;   // clearance the eye keeps from walls
+    public const float WallCollisionForwardProbeRadius = 0.05f;  // probe radius for the wall check
+    public const float WallCollisionForwardMargin = 0f;        // stop this far short of the wall along forward
+
+    public const float LookDownEyeOffsetForward = 0.12f;   // extra forward push at full look-down
+    public const float LookDownForwardStart = 0.08f;      // begin pushing
+    public const float LookDownForwardFull = 0.8f;        // reach the full push at this amount
     public const float HeldItemFadeStartDistance = 0.35f;   // begin fading once the item is this close
     public const float HeldItemFadeEndDistance = 0.1f;      // reach the strongest fade at this distance
 
