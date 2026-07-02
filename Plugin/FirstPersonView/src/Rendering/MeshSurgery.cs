@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace FirstPersonView;
 
-// hide the local players own head and their arms while the vanilla arms hold an item
 internal static class MeshSurgery
 {
     private static readonly Dictionary<int, Mesh> HeadlessMeshCache = new();
@@ -176,7 +175,6 @@ internal static class MeshSurgery
         return built;
     }
 
-    // hides the arms by folding each arm vertex onto the nearest shoulder seam vertex
     private static Mesh? BuildHeadlessArmlessMesh(
         Mesh sourceMesh, SkinnedMeshRenderer skinned, Transform headBone, Transform? leftArm, Transform? rightArm,
         string nameSuffix)
@@ -196,7 +194,6 @@ internal static class MeshSurgery
         float[] headInfluence = new float[vertexCount];
         bool[] headDominant = new bool[vertexCount];
         bool[] armDominant = new bool[vertexCount];
-
         for (int i = 0; i < vertexCount; i++)
         {
             BoneWeight bw = boneWeights[i];
@@ -205,21 +202,13 @@ internal static class MeshSurgery
             armDominant[i] = IsDominatedBy(bw, armBones);
         }
 
-        List<int> seam = CollectSeamVertices(sourceMesh, headInfluence, headDominant, armDominant);
-        if (seam.Count == 0)
-            return null;   // the arms don't border the torso here, so theres nothing to fold onto
-
-        Vector3[] vertices = sourceMesh.vertices;
-        Vector3[] foldedVertices = (Vector3[])vertices.Clone();
+        Vector3[] foldedVertices = (Vector3[])sourceMesh.vertices.Clone();
         BoneWeight[] foldedWeights = (BoneWeight[])boneWeights.Clone();
-        for (int i = 0; i < vertexCount; i++)
-        {
-            if (!armDominant[i])
-                continue;
-            int target = NearestVertex(vertices[i], seam, vertices);
-            foldedVertices[i] = vertices[target];
-            foldedWeights[i] = boneWeights[target];
-        }
+
+        FoldDominantVerticesToNearestSeam(sourceMesh, headDominant, foldedVertices, foldedWeights);
+
+        if (!FoldDominantVerticesToNearestSeam(sourceMesh, armDominant, foldedVertices, foldedWeights, headDominant))
+            return null;   // the arms don't border the torso here, so theres nothing to fold onto
 
         Mesh filteredMesh = UnityEngine.Object.Instantiate(sourceMesh);
         filteredMesh.name = sourceMesh.name + nameSuffix;
@@ -240,7 +229,7 @@ internal static class MeshSurgery
                 if (ShouldCullTriangle(a, b, c, headInfluence, headDominant))
                     continue;
                 if (armDominant[a] && armDominant[b] && armDominant[c])
-                    continue;   // all three verts fold to the seam, so the triangle would draw nothing
+                    continue;
 
                 kept.Add(a);
                 kept.Add(b);
@@ -255,8 +244,7 @@ internal static class MeshSurgery
         return filteredMesh;
     }
 
-    private static List<int> CollectSeamVertices(
-        Mesh mesh, float[] headInfluence, bool[] headDominant, bool[] armDominant)
+    private static List<int> CollectSeamVertices(Mesh mesh, bool[] dominantCut)
     {
         HashSet<int> seam = new();
         for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
@@ -268,18 +256,54 @@ internal static class MeshSurgery
                 int b = triangles[i + 1];
                 int c = triangles[i + 2];
 
-                if (ShouldCullTriangle(a, b, c, headInfluence, headDominant))
-                    continue;
-                if (!armDominant[a] && !armDominant[b] && !armDominant[c])
+                if (!dominantCut[a] && !dominantCut[b] && !dominantCut[c])
                     continue;
 
-                if (!armDominant[a]) seam.Add(a);
-                if (!armDominant[b]) seam.Add(b);
-                if (!armDominant[c]) seam.Add(c);
+                if (!dominantCut[a]) seam.Add(a);
+                if (!dominantCut[b]) seam.Add(b);
+                if (!dominantCut[c]) seam.Add(c);
             }
         }
 
         return new List<int>(seam);
+    }
+
+    private static bool FoldDominantVerticesToNearestSeam(
+        Mesh sourceMesh, bool[] dominantCut, Vector3[] foldedVertices, BoneWeight[] foldedWeights,
+        bool[]? avoidTargets = null)
+    {
+        List<int> seam = CollectSeamVertices(sourceMesh, dominantCut);
+        if (seam.Count == 0)
+            return false;
+
+        List<int> candidates = seam;
+        if (avoidTargets != null)
+        {
+            List<int> preferred = new(seam.Count);
+            foreach (int v in seam)
+            {
+                if (v >= 0 && v < avoidTargets.Length && !avoidTargets[v])
+                    preferred.Add(v);
+            }
+
+            if (preferred.Count > 0)
+                candidates = preferred;
+        }
+
+        Vector3[] lookupVertices = (Vector3[])foldedVertices.Clone();
+        BoneWeight[] lookupWeights = (BoneWeight[])foldedWeights.Clone();
+
+        for (int i = 0; i < dominantCut.Length; i++)
+        {
+            if (!dominantCut[i])
+                continue;
+
+            int target = NearestVertex(lookupVertices[i], candidates, lookupVertices);
+            foldedVertices[i] = lookupVertices[target];
+            foldedWeights[i] = lookupWeights[target];
+        }
+
+        return true;
     }
 
     private static int NearestVertex(Vector3 point, List<int> candidates, Vector3[] vertices)
@@ -312,7 +336,6 @@ internal static class MeshSurgery
         }
     }
 
-    // removes every triangle dominantly weighted to one of removalBoneIndices keeping the rest of the body.
     private static Mesh? BuildMeshWithoutBones(Mesh sourceMesh, HashSet<int> removalBoneIndices, bool[]? pipeMask, string nameSuffix)
     {
         BoneWeight[] boneWeights = sourceMesh.boneWeights;
@@ -324,7 +347,6 @@ internal static class MeshSurgery
 
         float[] influence = new float[boneWeights.Length];
         bool[] dominant = new bool[boneWeights.Length];
-
         for (int i = 0; i < boneWeights.Length; i++)
         {
             BoneWeight bw = boneWeights[i];
@@ -332,8 +354,14 @@ internal static class MeshSurgery
             dominant[i] = IsDominatedBy(bw, removalBoneIndices) || (pipeMask != null && pipeMask[i]);
         }
 
+        Vector3[] foldedVertices = (Vector3[])sourceMesh.vertices.Clone();
+        BoneWeight[] foldedWeights = (BoneWeight[])boneWeights.Clone();
+        FoldDominantVerticesToNearestSeam(sourceMesh, dominant, foldedVertices, foldedWeights);
+
         Mesh filteredMesh = UnityEngine.Object.Instantiate(sourceMesh);
         filteredMesh.name = sourceMesh.name + nameSuffix;
+        filteredMesh.vertices = foldedVertices;
+        filteredMesh.boneWeights = foldedWeights;
 
         for (int subMesh = 0; subMesh < filteredMesh.subMeshCount; subMesh++)
         {
@@ -362,7 +390,6 @@ internal static class MeshSurgery
         return filteredMesh;
     }
 
-    // sum weight of the bones in set that influence this vertex.
     private static float InfluenceOf(BoneWeight bw, HashSet<int> set)
     {
         float total = 0f;
@@ -373,7 +400,29 @@ internal static class MeshSurgery
         return total;
     }
 
-    // vertexs strongest weighted bone belongs to set
+    private static bool ShouldCullTriangle(int a, int b, int c, float[] headInfluence, bool[] dominantHead)
+    {
+        float influenceA = a >= 0 && a < headInfluence.Length ? headInfluence[a] : 0f;
+        float influenceB = b >= 0 && b < headInfluence.Length ? headInfluence[b] : 0f;
+        float influenceC = c >= 0 && c < headInfluence.Length ? headInfluence[c] : 0f;
+
+        int strongInfluenceCount = 0;
+        if (influenceA >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
+        if (influenceB >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
+        if (influenceC >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
+
+        int dominantHeadCount = 0;
+        if (a >= 0 && a < dominantHead.Length && dominantHead[a]) dominantHeadCount++;
+        if (b >= 0 && b < dominantHead.Length && dominantHead[b]) dominantHeadCount++;
+        if (c >= 0 && c < dominantHead.Length && dominantHead[c]) dominantHeadCount++;
+
+        if (dominantHeadCount >= 2 || strongInfluenceCount >= 2)
+            return true;
+
+        float averageInfluence = (influenceA + influenceB + influenceC) / 3f;
+        return dominantHeadCount >= 1 && averageInfluence >= Constants.HeadAverageInfluenceThreshold;
+    }
+
     private static bool IsDominatedBy(BoneWeight bw, HashSet<int> set)
     {
         int dominantBone = bw.boneIndex0;
@@ -402,7 +451,6 @@ internal static class MeshSurgery
         return indices;
     }
 
-    // shoulder bones and everything below them.
     private static HashSet<int> GetArmBoneIndices(SkinnedMeshRenderer skinned, Transform? leftArm, Transform? rightArm)
     {
         HashSet<int> indices = new();
@@ -423,29 +471,6 @@ internal static class MeshSurgery
         return indices;
     }
 
-    private static bool ShouldCullTriangle(int a, int b, int c, float[] headInfluence, bool[] dominantHead)
-    {
-        float influenceA = a >= 0 && a < headInfluence.Length ? headInfluence[a] : 0f;
-        float influenceB = b >= 0 && b < headInfluence.Length ? headInfluence[b] : 0f;
-        float influenceC = c >= 0 && c < headInfluence.Length ? headInfluence[c] : 0f;
-
-        int strongInfluenceCount = 0;
-        if (influenceA >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
-        if (influenceB >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
-        if (influenceC >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
-
-        int dominantHeadCount = 0;
-        if (a >= 0 && a < dominantHead.Length && dominantHead[a]) dominantHeadCount++;
-        if (b >= 0 && b < dominantHead.Length && dominantHead[b]) dominantHeadCount++;
-        if (c >= 0 && c < dominantHead.Length && dominantHead[c]) dominantHeadCount++;
-
-        if (dominantHeadCount >= 2 || strongInfluenceCount >= 2)
-            return true;
-
-        float averageInfluence = (influenceA + influenceB + influenceC) / 3f;
-        return dominantHeadCount >= 1 && averageInfluence >= Constants.HeadAverageInfluenceThreshold;
-    }
-
     private static bool ContainsHeadHint(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -460,7 +485,6 @@ internal static class MeshSurgery
         return false;
     }
 
-    // sourceMesh if it's readable, else a copy pulled back from its GPU buffers
     private static Mesh? ResolveReadable(Mesh sourceMesh, int meshId)
     {
         if (sourceMesh.isReadable)
@@ -490,7 +514,6 @@ internal static class MeshSurgery
         return copy;
     }
 
-    // read a non-readable mesh back from the GPU
     private static Mesh MakeReadableMeshCopy(Mesh nonReadableMesh)
     {
         Mesh meshCopy = new()

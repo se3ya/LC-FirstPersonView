@@ -8,8 +8,8 @@ internal static class Constants
     public const string ScavengerModelName = "ScavengerModel";
     public const string MetarigName = "metarig";
     public const string HeadBoneName = "spine.004"; // spine joint
-    public const string LeftArmBoneName = "shoulder.L";
-    public const string RightArmBoneName = "shoulder.R";
+    public const string LeftArmBoneName = "arm.L_upper";
+    public const string RightArmBoneName = "arm.R_upper";
 
     public const int EnemiesNotRenderedLayer = 23;
 
