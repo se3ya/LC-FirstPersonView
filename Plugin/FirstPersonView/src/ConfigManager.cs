@@ -20,6 +20,7 @@ public static class ConfigManager
 
     public static ConfigEntry<bool> EnableMoreCompanyCompatibility = null!;
     public static ConfigEntry<bool> EnableTooManyEmotesCompatibility = null!;
+    public static ConfigEntry<bool> EnableLethalPhonesCompatibility = null!;
     public static ConfigEntry<bool> ShowMoreCompanyHat = null!;
     public static ConfigEntry<bool> ShowMoreCompanyChest = null!;
     public static ConfigEntry<bool> ShowMoreCompanyHip = null!;
@@ -40,7 +41,14 @@ public static class ConfigManager
             "1. Compatibility",
             "Enable TooManyEmotes Compatibility",
             true,
-            "Keep the camera on your head during a TooManyEmotes first-person emote. Takes effect on restart."
+            "Keep the camera on your head during a TooManyEmotes first-person emote."
+        );
+
+        EnableLethalPhonesCompatibility = config.Bind(
+            "1. Compatibility",
+            "Enable LethalPhones Compatibility",
+            true,
+            "Show your hands holding a LethalPhones phone."
         );
 
         ShowMoreCompanyHat = config.Bind(

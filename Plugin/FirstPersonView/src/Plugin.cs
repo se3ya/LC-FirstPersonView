@@ -9,6 +9,7 @@ namespace FirstPersonView;
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 [BepInDependency(ModGUIDs.MoreCompany, BepInDependency.DependencyFlags.SoftDependency)]
 [BepInDependency(ModGUIDs.TooManyEmotes, BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency(ModGUIDs.LethalPhones, BepInDependency.DependencyFlags.SoftDependency)]
 public class Plugin : BaseUnityPlugin
 {
     private readonly Harmony _harmony = new(MyPluginInfo.PLUGIN_GUID);
@@ -28,6 +29,7 @@ public class Plugin : BaseUnityPlugin
         ConfigManager.Initialize(Config);
         MoreCompanyCompat.Initialize();
         TooManyEmotesCompat.Initialize();
+        LethalPhonesCompat.Initialize();
         _harmony.PatchAll();
 
         Log.LogInfo($"{MyPluginInfo.PLUGIN_NAME} is loaded!");

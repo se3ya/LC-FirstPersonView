@@ -62,4 +62,5 @@ internal sealed class LocalBodyState
     public bool EyeAnchorCaptured;
     public bool MovementArmsActive;
     public float MovementArmsTimer;
+    public Component? LethalPhonesPlayerPhone;
 }

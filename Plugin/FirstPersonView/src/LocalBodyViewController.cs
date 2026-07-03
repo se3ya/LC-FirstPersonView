@@ -57,9 +57,11 @@ internal static class LocalBodyViewController
         bool showBody = player.isPlayerControlled && !player.isPlayerDead;
         LocalBodyShown = showBody;
 
-        bool holdingArms = Players.IsActivelyHolding(player)
-            && !player.inSpecialInteractAnimation
-            && ConfigManager.Hands.Value == HandsMode.Vanilla;
+        bool phoneActive = LethalPhonesCompat.IsLocalPhoneActive(state, player);
+
+        bool holdingArms = !player.inSpecialInteractAnimation
+            && (phoneActive
+                || (Players.IsActivelyHolding(player) && ConfigManager.Hands.Value == HandsMode.Vanilla));
 
         bool movementArms;
         if (showBody
