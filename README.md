@@ -15,7 +15,7 @@
 - Renders players body in first person
 - Camera moves according to players body
 - Held items in third-person arms mode will start to dither when they get too close to the screen or cover most of it
-- Compatible with **MoreCompany** and **TooManyEmotes**
+- Compatible with **MoreCompany**, **TooManyEmotes** and **LethalPhones**
 
 ## Configuration
 
