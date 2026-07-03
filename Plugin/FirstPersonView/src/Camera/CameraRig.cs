@@ -86,7 +86,17 @@ internal static class CameraRig
 
     public static void RelaxSeatedLookClamp(PlayerControllerB player)
     {
-        if (!player.inVehicleAnimation || !player.clampLooking)
+        if (!player.isPlayerControlled || player.isPlayerDead)
+            return;
+
+        if (player.clampLooking && !player.inSpecialInteractAnimation)
+        {
+            player.clampLooking = false;
+            player.inVehicleAnimation = false;
+            return;
+        }
+
+        if (!player.clampLooking)
             return;
 
         if (player.minVerticalClamp < Constants.SeatedLookDownClamp)
