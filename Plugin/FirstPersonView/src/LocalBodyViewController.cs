@@ -94,7 +94,12 @@ internal static class LocalBodyViewController
 
         VisorRig.SuppressVanillaCrack(state, VisorRig.IsImmersiveVisorPresent());
 
-        if (showBody && !player.inTerminalMenu)
+        bool detachForVehicle = ConfigManager.EnableCruiserImprovedCompatibility.Value
+            && player.inVehicleAnimation;
+
+        if (detachForVehicle)
+            CameraRig.ApplyVehicleDetachNudge(state);
+        else if (showBody && !player.inTerminalMenu)
             CameraRig.ApplyOffset(state, player);
         else
             CameraRig.RestoreOffset(state);

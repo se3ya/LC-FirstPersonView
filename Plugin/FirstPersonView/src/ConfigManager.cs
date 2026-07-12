@@ -21,6 +21,7 @@ public static class ConfigManager
     public static ConfigEntry<bool> EnableMoreCompanyCompatibility = null!;
     public static ConfigEntry<bool> EnableTooManyEmotesCompatibility = null!;
     public static ConfigEntry<bool> EnableLethalPhonesCompatibility = null!;
+    public static ConfigEntry<bool> EnableCruiserImprovedCompatibility = null!;
     public static ConfigEntry<bool> ShowMoreCompanyHat = null!;
     public static ConfigEntry<bool> ShowMoreCompanyChest = null!;
     public static ConfigEntry<bool> ShowMoreCompanyHip = null!;
@@ -49,6 +50,13 @@ public static class ConfigManager
             "Enable LethalPhones Compatibility",
             true,
             "Show your hands holding a LethalPhones phone."
+        );
+
+        EnableCruiserImprovedCompatibility = config.Bind(
+            "1. Compatibility",
+            "Enable CruiserImproved Compatibility",
+            false,
+            "Allows CruiserImproveds lean and seat boost to work."
         );
 
         ShowMoreCompanyHat = config.Bind(
