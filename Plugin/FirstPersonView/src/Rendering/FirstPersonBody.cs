@@ -36,8 +36,12 @@ internal static class FirstPersonBody
                     player.thisPlayerModel.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
             }
 
-            if (state.PlayerLodGroup != null && state.PlayerLodGroup.enabled)
-                state.PlayerLodGroup.enabled = false;
+            if (state.PlayerLodGroup != null)
+            {
+                if (!state.PlayerLodGroup.enabled)
+                    state.PlayerLodGroup.enabled = true;
+                state.PlayerLodGroup.ForceLOD(0);
+            }
 
             if (player.thisPlayerModelLOD1 != null && player.thisPlayerModelLOD1.enabled)
                 player.thisPlayerModelLOD1.enabled = false;
