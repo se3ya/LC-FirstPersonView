@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-12
+
+### Added
+
+- CruiserImproved compatibility
+
+### Changed
+
+- Camera no longer always pushed forward, it now eases forward only as you look down to prevent seeing neck
+
+### Fixed
+
+- Camera being sometimes behind the neck
+- Held items floating away from hand right after being picked up
+
 ## [1.2.0] - 2026-07-03
 
 ### Added
