@@ -21,14 +21,6 @@ internal static class HeldItemView
     private static bool hideActive;
     private static float fadeCurrent = 1f;      // low passed fade smoothed toward the per frame target
 
-    private static bool fpItemActive;
-    private static Transform? localHolder;
-    private static Transform? serverHolder;
-    private static Transform? itemTransform;
-    private static bool itemRepositioned;
-    private static Vector3 cachedItemPos;
-    private static Quaternion cachedItemRot;
-
     public static void ApplyHolder(LocalBodyState state, PlayerControllerB player, bool showBody, bool useVanillaArms)
     {
         GrabbableObject? held = player.currentlyHeldObjectServer;
@@ -68,18 +60,10 @@ internal static class HeldItemView
 
         camera = state.GameplayCamera;
         hideActive = showBody && tracked != null && !inspecting;
-
-        bool fpHold = useVanillaArms && showBody && actuallyHeld && !inspecting && held != null;
-        fpItemActive = fpHold;
-        localHolder = player.localItemHolder;
-        serverHolder = player.serverItemHolder;
-        itemTransform = fpHold ? held!.transform : null;
     }
 
     public static void ApplyForCamera(Camera renderingCamera)
     {
-        RepositionForCamera(renderingCamera);
-
         if (!hideActive || renderers.Length == 0)
             return;
 
@@ -88,22 +72,6 @@ internal static class HeldItemView
 
         float fade = renderingCamera == camera ? ComputeFade(renderingCamera) : 1f;
         ApplyFade(fade);
-    }
-
-    private static void RepositionForCamera(Camera renderingCamera)
-    {
-        if (!fpItemActive || itemRepositioned || itemTransform == null || localHolder == null || serverHolder == null)
-            return;
-        if (renderingCamera == camera)
-            return;
-
-        cachedItemPos = itemTransform.position;
-        cachedItemRot = itemTransform.rotation;
-        Vector3 offset = localHolder.InverseTransformPoint(cachedItemPos);
-        Quaternion relative = Quaternion.Inverse(localHolder.rotation) * cachedItemRot;
-        itemTransform.position = serverHolder.TransformPoint(offset);
-        itemTransform.rotation = serverHolder.rotation * relative;
-        itemRepositioned = true;
     }
 
     private static bool DitherEnabled()
@@ -119,13 +87,6 @@ internal static class HeldItemView
 
     public static void RestoreAfterCamera(Camera renderingCamera)
     {
-        if (itemRepositioned && itemTransform != null)
-        {
-            itemTransform.position = cachedItemPos;
-            itemTransform.rotation = cachedItemRot;
-        }
-        itemRepositioned = false;
-
         if (renderers.Length > 0 && renderingCamera == camera)
             ApplyFade(1f);
     }
@@ -260,7 +221,6 @@ internal static class HeldItemView
         }
     }
 
-    // restore each renderers original mode so item motion blurs normally again
     private static void RestoreMotionVectors()
     {
         for (int i = 0; i < renderers.Length && i < originalMotionModes.Length; i++)
@@ -283,10 +243,5 @@ internal static class HeldItemView
         localVertices = Array.Empty<Vector3>();
         camera = null;
         hideActive = false;
-        fpItemActive = false;
-        localHolder = null;
-        serverHolder = null;
-        itemTransform = null;
-        itemRepositioned = false;
     }
 }
