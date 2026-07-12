@@ -30,6 +30,7 @@ internal sealed class LocalBodyState
     public Camera? GameplayCamera;
     public Vector3 CameraBaseLocalPosition;
     public bool CameraBaseCaptured;
+    public bool WasSpecialInteract;
     public bool CameraOffsetApplied;
     public Vector3 LastCameraTargetLocal;
     public bool HasCameraTarget;
@@ -63,4 +64,6 @@ internal sealed class LocalBodyState
     public bool MovementArmsActive;
     public float MovementArmsTimer;
     public Component? LethalPhonesPlayerPhone;
+    public Vector3 VehicleDetachLastCamLocal;
+    public bool VehicleDetachActive;
 }

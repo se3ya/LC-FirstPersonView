@@ -49,22 +49,19 @@ internal static class Constants
     public const float SprintBobReduction = 0.6f;     // fully stabilize the run/jump bob
     public const float MaxFollowOffset = 0.5f;      // how far the follow can move the eye
     public const float EyeOffsetForward = 0f;    // push the eye forward so the neck stays behind
-    public const float EyeOffsetForwardOnLadder = 0f;
+    public const float EyeForwardFloor = 0f;     // eye may never go behind the base
     public const float EyeOffsetUp = 0f;
     public const float EyeOffsetRight = 0f;
     public const float CrouchEyeOffsetUp = 0f;   // raise the eye while crouching so it doesn't sink into the neck
 
     // eye nudge while holding
-    public const float HoldingEyeOffsetForward = 0.08f;   // extra forward push while holding
-    public const float HoldingEyeOffsetUp = 0.07f;        // extra up while holding
+    public const float HoldingEyeOffsetUp = 0f;        // extra up while holding
     public const float HoldingBlendTime = 0.18f;          // ease the holding nudge in/out
 
-    public const float RunningEyeOffsetForward = 0.1f;   // extra forward push while running
-    public const float RunningEyeOffsetUp = 0.05f;        // extra up while running
+    public const float RunningEyeOffsetUp = 0f;        // extra up while running
     public const float RunningBlendTime = 0.18f;          // ease the running nudge in/out
 
     // eye nudge while jumping
-    public const float JumpingEyeOffsetForward = 0.13f;   // extra forward push while jumping
     public const float JumpingEyeOffsetUp = 0f;        // extra up while jumping
     public const float JumpingBlendTime = 0.18f;          // ease the jumping nudge in/out
 
@@ -76,6 +73,11 @@ internal static class Constants
     public const float LookDownEyeOffsetForward = 0.12f;   // extra forward push at full look-down
     public const float LookDownForwardStart = 0.08f;      // begin pushing
     public const float LookDownForwardFull = 0.8f;        // reach the full push at this amount
+
+    public const float LookDownHoldingEyeOffsetForward = 0.12f;   // while holding two-handed
+    public const float LookDownRunningEyeOffsetForward = 0.12f;   // while running
+    public const float LookDownJumpingEyeOffsetForward = 0.12f;   // while jumping
+    public const float LookDownLadderEyeOffsetForward = 0.12f;    // while on a ladder
     public const float HeldItemFadeStartDistance = 0.35f;   // begin fading once the item is this close
     public const float HeldItemFadeEndDistance = 0.1f;      // reach the strongest fade at this distance
 
@@ -87,6 +89,9 @@ internal static class Constants
     public const float HeldItemFadeSmoothTime = 0.08f;
 
     public const float SeatedLookDownClamp = 75f;   // max downward look angle while seated, in degrees
+
+    public const float CruiserCompatForwardPush = 0.2f;
+    public const float CruiserCompatUpPush = 0.1f;
 
     public static readonly Vector3 CruiserKeyPositionOffset = new Vector3(0, 0, -0.05f);
     public static readonly Vector3 CruiserKeyRotationOffset = Vector3.zero;

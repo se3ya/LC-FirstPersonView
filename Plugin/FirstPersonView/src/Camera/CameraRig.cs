@@ -13,6 +13,10 @@ internal static class CameraRig
         if (camera == null || !state.CameraBaseCaptured)
             return;
 
+        if (state.WasSpecialInteract && !player.inSpecialInteractAnimation)
+            state.EyeAnchorCaptured = false;
+        state.WasSpecialInteract = player.inSpecialInteractAnimation;
+
         Transform camTransform = camera.transform;
         Transform? parent = camTransform.parent;
 
@@ -49,16 +53,16 @@ internal static class CameraRig
             state.LadderBlend, player.isClimbingLadder ? 1f : 0f, Time.deltaTime / Constants.LadderBlendTime);
 
         float lookDown = Vector3.Dot(camTransform.forward, -up);
-        float lookDownForward = Mathf.SmoothStep(0f, 1f,
-            Mathf.InverseLerp(Constants.LookDownForwardStart, Constants.LookDownForwardFull, lookDown))
-            * Constants.LookDownEyeOffsetForward;
+        float lookDownRamp = Mathf.SmoothStep(0f, 1f,
+            Mathf.InverseLerp(Constants.LookDownForwardStart, Constants.LookDownForwardFull, lookDown));
 
-        float forwardOffset = Mathf.Lerp(
-            Constants.EyeOffsetForward, Constants.EyeOffsetForwardOnLadder, state.LadderBlend)
-            + lookDownForward
-            + (state.HoldBlend * Constants.HoldingEyeOffsetForward)
-            + (state.RunBlend * Constants.RunningEyeOffsetForward)
-            + (state.JumpBlend * Constants.JumpingEyeOffsetForward);
+        float forwardOffset = Constants.EyeOffsetForward
+            + lookDownRamp * (
+                Constants.LookDownEyeOffsetForward
+                + (state.LadderBlend * Constants.LookDownLadderEyeOffsetForward)
+                + (state.HoldBlend * Constants.LookDownHoldingEyeOffsetForward)
+                + (state.RunBlend * Constants.LookDownRunningEyeOffsetForward)
+                + (state.JumpBlend * Constants.LookDownJumpingEyeOffsetForward));
 
         Vector3 baseWorld = parent != null
             ? parent.TransformPoint(state.CameraBaseLocalPosition)
@@ -67,9 +71,13 @@ internal static class CameraRig
         Vector3 anchorWorld = FollowBodyAnchor(state, player, baseWorld, yawRotation);
 
         Vector3 toAnchor = anchorWorld - baseWorld;
-        float totalForward = Vector3.Dot(toAnchor, flatForward) + forwardOffset;
+        float followForward = Vector3.Dot(toAnchor, flatForward);
+        float totalForward = followForward + forwardOffset;
         float totalRight = Vector3.Dot(toAnchor, flatRight) + Constants.EyeOffsetRight;
         float totalUp = Vector3.Dot(toAnchor, up) + upOffset;
+
+        if (!player.inSpecialInteractAnimation)
+            totalForward = Mathf.Max(totalForward, Constants.EyeForwardFloor);
 
         totalForward = ClampTravelToWall(
             baseWorld, flatForward, totalForward,
@@ -82,6 +90,30 @@ internal static class CameraRig
         state.LastCameraTargetLocal = parent != null ? parent.InverseTransformPoint(target) : target;
         state.HasCameraTarget = true;
         state.CameraOffsetApplied = true;
+        state.VehicleDetachActive = false;
+    }
+
+    public static void ApplyVehicleDetachNudge(LocalBodyState state)
+    {
+        Camera? camera = state.GameplayCamera;
+        if (camera == null)
+            return;
+
+        Transform camT = camera.transform;
+        Vector3 push = new(0f, Constants.CruiserCompatUpPush, Constants.CruiserCompatForwardPush);
+
+        Vector3 current = camT.localPosition;
+        bool alreadyPushed = state.VehicleDetachActive
+            && (current - state.VehicleDetachLastCamLocal).sqrMagnitude <= 1e-8f;
+        if (!alreadyPushed)
+            camT.localPosition = current + push;
+
+        state.VehicleDetachLastCamLocal = camT.localPosition;
+        state.VehicleDetachActive = true;
+
+        state.CameraOffsetApplied = false;
+        state.HasCameraTarget = false;
+        state.NeckGuardInitialized = false;
     }
 
     public static void RelaxSeatedLookClamp(PlayerControllerB player)
@@ -357,6 +389,7 @@ internal static class CameraRig
         state.DisableBobSmoothInitialized = false;
         state.DisableBobBlend = 0f;
         state.HasCameraTarget = false;
+        state.VehicleDetachActive = false;
 
         if (!state.CameraOffsetApplied)
             return;
