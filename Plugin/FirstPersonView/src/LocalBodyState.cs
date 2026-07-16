@@ -15,6 +15,8 @@ internal sealed class LocalBodyState
     public bool HeadHidden;
     public SkinnedMeshRenderer? ShadowProxy;
     public LODGroup? PlayerLodGroup;
+    public int BodyLodIndex = -1;
+    public float BodyLodNextScan;
 
     public Transform? LeftArmBone;
     public Transform? RightArmBone;

@@ -40,7 +40,13 @@ internal static class FirstPersonBody
             {
                 if (!state.PlayerLodGroup.enabled)
                     state.PlayerLodGroup.enabled = true;
-                state.PlayerLodGroup.ForceLOD(0);
+                if (player.thisPlayerModel != null
+                    && (state.BodyLodIndex < 0 || Time.unscaledTime >= state.BodyLodNextScan))
+                {
+                    state.BodyLodIndex = FindLodIndex(state.PlayerLodGroup, player.thisPlayerModel);
+                    state.BodyLodNextScan = Time.unscaledTime + 0.5f;
+                }
+                state.PlayerLodGroup.ForceLOD(state.BodyLodIndex < 0 ? 0 : state.BodyLodIndex);
             }
 
             if (player.thisPlayerModelLOD1 != null && player.thisPlayerModelLOD1.enabled)
@@ -72,6 +78,21 @@ internal static class FirstPersonBody
 
         if (fpArms.enabled != enabled)
             fpArms.enabled = enabled;
+    }
+
+    private static int FindLodIndex(LODGroup group, Renderer target)
+    {
+        LOD[] lods = group.GetLODs();
+        for (int i = 0; i < lods.Length; i++)
+        {
+            Renderer[] renderers = lods[i].renderers;
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                if (renderers[r] == target)
+                    return i;
+            }
+        }
+        return 0;
     }
 
     // Vanilla never draws layer 23

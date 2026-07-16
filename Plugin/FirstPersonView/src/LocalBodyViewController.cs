@@ -154,6 +154,7 @@ internal static class LocalBodyViewController
 
         state.BodyRenderer = player.thisPlayerModel;
         state.PlayerLodGroup = player.GetComponentInChildren<LODGroup>();
+        state.BodyLodIndex = -1;
         CaptureOriginalBodyMesh(state);
 
         state.LocalVisor = player.localVisor;
