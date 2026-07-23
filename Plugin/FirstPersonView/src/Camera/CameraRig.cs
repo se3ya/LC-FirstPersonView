@@ -173,7 +173,7 @@ internal static class CameraRig
         if (bone == null)
             return baseWorld;
 
-        if (!state.EyeAnchorCaptured)
+        if (!state.EyeAnchorCaptured && !player.isCrouching)
         {
             state.EyeAnchorLocal = Quaternion.Inverse(yawRotation) * (baseWorld - bone.position);
             state.EyeAnchorBoneLocal = bone.InverseTransformPoint(baseWorld);
