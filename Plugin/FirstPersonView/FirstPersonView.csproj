@@ -11,7 +11,7 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <Version>1.3.1</Version>
+        <Version>1.3.2</Version>
         <BepInExPluginGuid>com.seeya.firstpersonview</BepInExPluginGuid>
         <BepInExPluginName>First-Person View</BepInExPluginName>
     </PropertyGroup>
