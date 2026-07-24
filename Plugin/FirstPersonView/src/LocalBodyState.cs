@@ -66,6 +66,4 @@ internal sealed class LocalBodyState
     public bool MovementArmsActive;
     public float MovementArmsTimer;
     public Component? LethalPhonesPlayerPhone;
-    public Vector3 VehicleDetachLastCamLocal;
-    public bool VehicleDetachActive;
 }

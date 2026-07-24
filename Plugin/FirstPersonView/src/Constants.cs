@@ -71,6 +71,7 @@ internal static class Constants
     public const float WallCollisionForwardMargin = 0f;        // stop this far short of the wall along forward
 
     public const float LookDownEyeOffsetForward = 0.12f;   // extra forward push at full look-down
+    public const float LookDownCruiserImprovedEyeOffsetForward = 0.35f;   // while seated in cruiser with CruiserImproved compat enabled
     public const float LookDownForwardStart = 0.08f;      // begin pushing
     public const float LookDownForwardFull = 0.8f;        // reach the full push at this amount
 
@@ -78,6 +79,7 @@ internal static class Constants
     public const float LookDownRunningEyeOffsetForward = 0.12f;   // while running
     public const float LookDownJumpingEyeOffsetForward = 0.12f;   // while jumping
     public const float LookDownLadderEyeOffsetForward = 0.12f;    // while on a ladder
+    public const float LookDownCruiserEyeOffsetForward = 0.2f;    // seated in the cruiser with CruiserImproved compat off
     public const float HeldItemFadeStartDistance = 0.35f;   // begin fading once the item is this close
     public const float HeldItemFadeEndDistance = 0.1f;      // reach the strongest fade at this distance
 
@@ -90,8 +92,7 @@ internal static class Constants
 
     public const float SeatedLookDownClamp = 75f;   // max downward look angle while seated, in degrees
 
-    public const float CruiserCompatForwardPush = 0.2f;
-    public const float CruiserCompatUpPush = 0.1f;
+    public const float CruiserCompatUpPush = 0f;
 
     public static readonly Vector3 CruiserKeyPositionOffset = new Vector3(0, 0, -0.05f);
     public static readonly Vector3 CruiserKeyRotationOffset = Vector3.zero;

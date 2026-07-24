@@ -98,7 +98,7 @@ internal static class LocalBodyViewController
             && player.inVehicleAnimation;
 
         if (detachForVehicle)
-            CameraRig.ApplyVehicleDetachNudge(state);
+            CameraRig.PrepareVehicleDetach(state);
         else if (showBody && !player.inTerminalMenu)
             CameraRig.ApplyOffset(state, player);
         else
@@ -117,7 +117,13 @@ internal static class LocalBodyViewController
         if (!States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
             return;
 
-        CameraRig.AlignForInteractionRay(state);
+        bool detachForVehicle = ConfigManager.EnableCruiserImprovedCompatibility.Value
+            && player.inVehicleAnimation;
+
+        if (detachForVehicle)
+            CameraRig.ApplyVehiclePush(state);
+        else
+            CameraRig.AlignForInteractionRay(state);
     }
 
     private static LocalBodyState GetOrCreateState(PlayerControllerB player)

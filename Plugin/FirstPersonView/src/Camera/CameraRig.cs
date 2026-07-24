@@ -56,9 +56,13 @@ internal static class CameraRig
         float lookDownRamp = Mathf.SmoothStep(0f, 1f,
             Mathf.InverseLerp(Constants.LookDownForwardStart, Constants.LookDownForwardFull, lookDown));
 
+        float lookDownEyeOffsetForward = player.inVehicleAnimation
+            ? Constants.LookDownCruiserEyeOffsetForward
+            : Constants.LookDownEyeOffsetForward;
+
         float forwardOffset = Constants.EyeOffsetForward
             + lookDownRamp * (
-                Constants.LookDownEyeOffsetForward
+                lookDownEyeOffsetForward
                 + (state.LadderBlend * Constants.LookDownLadderEyeOffsetForward)
                 + (state.HoldBlend * Constants.LookDownHoldingEyeOffsetForward)
                 + (state.RunBlend * Constants.LookDownRunningEyeOffsetForward)
@@ -90,30 +94,31 @@ internal static class CameraRig
         state.LastCameraTargetLocal = parent != null ? parent.InverseTransformPoint(target) : target;
         state.HasCameraTarget = true;
         state.CameraOffsetApplied = true;
-        state.VehicleDetachActive = false;
     }
 
-    public static void ApplyVehicleDetachNudge(LocalBodyState state)
+    public static void PrepareVehicleDetach(LocalBodyState state)
+    {
+        state.CameraOffsetApplied = false;
+        state.HasCameraTarget = false;
+        state.NeckGuardInitialized = false;
+    }
+
+    public static void ApplyVehiclePush(LocalBodyState state)
     {
         Camera? camera = state.GameplayCamera;
         if (camera == null)
             return;
 
         Transform camT = camera.transform;
-        Vector3 push = new(0f, Constants.CruiserCompatUpPush, Constants.CruiserCompatForwardPush);
+        Transform? parent = camT.parent;
+        Vector3 up = parent != null ? parent.up : Vector3.up;
 
-        Vector3 current = camT.localPosition;
-        bool alreadyPushed = state.VehicleDetachActive
-            && (current - state.VehicleDetachLastCamLocal).sqrMagnitude <= 1e-8f;
-        if (!alreadyPushed)
-            camT.localPosition = current + push;
+        float lookDown = Vector3.Dot(camT.forward, -up);
+        float lookDownRamp = Mathf.SmoothStep(0f, 1f,
+            Mathf.InverseLerp(Constants.LookDownForwardStart, Constants.LookDownForwardFull, lookDown));
+        float forwardPush = lookDownRamp * Constants.LookDownCruiserImprovedEyeOffsetForward;
 
-        state.VehicleDetachLastCamLocal = camT.localPosition;
-        state.VehicleDetachActive = true;
-
-        state.CameraOffsetApplied = false;
-        state.HasCameraTarget = false;
-        state.NeckGuardInitialized = false;
+        camT.localPosition += new Vector3(0f, Constants.CruiserCompatUpPush, forwardPush);
     }
 
     public static void RelaxSeatedLookClamp(PlayerControllerB player)
@@ -389,7 +394,6 @@ internal static class CameraRig
         state.DisableBobSmoothInitialized = false;
         state.DisableBobBlend = 0f;
         state.HasCameraTarget = false;
-        state.VehicleDetachActive = false;
 
         if (!state.CameraOffsetApplied)
             return;
