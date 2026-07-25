@@ -42,27 +42,28 @@ internal static class Constants
     public const float NeckGuardDownFollow = 0f;       // fraction of a below rest dip the eye follows during a swing
     public const float NeckGuardCrouchSettled = 0.9f;    // only freeze the rest anchor once crouch blend passes this
     public const float NeckGuardCrouchFloor = 0.35f;     // min forward deviation a stand -> crouch swing floors the eye at
+    public const float EyeAnchorDriftTau = 2f;           // recentre eye anchor over this long, while standing
+    public const float EyeAnchorSettledLookBand = 0.05f;  // only recentre while the view is within this much of level, up or down
+    public const float EyeAnchorDriftWarnThreshold = 0.06f;  // drift above this is larger than normal head bob
+    public const float EyeAnchorDriftWarnDelay = 5f;     // only warn once the drift has stayed high this long
+
+    public const float VehiclePushMatchEpsilonSqr = 1e-8f;   // treat the seat camera as untouched within this squared distance
 
     // camera
     public const float FollowStrengthVertical = 1f;     // follow the up/down bob fully
     public const float FollowStrengthHorizontal = 1f;       // follow forward/side fully
     public const float SprintBobReduction = 0.6f;     // fully stabilize the run/jump bob
     public const float MaxFollowOffset = 0.5f;      // how far the follow can move the eye
-    public const float EyeOffsetForward = 0f;    // push the eye forward so the neck stays behind
     public const float EyeForwardFloor = 0f;     // eye may never go behind the base
-    public const float EyeOffsetUp = 0f;
-    public const float EyeOffsetRight = 0f;
-    public const float CrouchEyeOffsetUp = 0f;   // raise the eye while crouching so it doesn't sink into the neck
 
     // eye nudge while holding
-    public const float HoldingEyeOffsetUp = 0f;        // extra up while holding
-    public const float HoldingBlendTime = 0.18f;          // ease the holding nudge in/out
+    public const float ShovelSwingBlendTime = 0.18f;          // ease the shovel swing nudge in/out
 
-    public const float RunningEyeOffsetUp = 0f;        // extra up while running
     public const float RunningBlendTime = 0.18f;          // ease the running nudge in/out
 
+    public const float WalkingBlendTime = 0.18f;          // ease the walking nudge in/out
+
     // eye nudge while jumping
-    public const float JumpingEyeOffsetUp = 0f;        // extra up while jumping
     public const float JumpingBlendTime = 0.18f;          // ease the jumping nudge in/out
 
     // camera wall collision
@@ -70,16 +71,17 @@ internal static class Constants
     public const float WallCollisionForwardProbeRadius = 0.05f;  // probe radius for the wall check
     public const float WallCollisionForwardMargin = 0f;        // stop this far short of the wall along forward
 
-    public const float LookDownEyeOffsetForward = 0.12f;   // extra forward push at full look-down
-    public const float LookDownCruiserImprovedEyeOffsetForward = 0.35f;   // while seated in cruiser with CruiserImproved compat enabled
+    public const float LookDownEyeOffsetForward = 0.13f;   // extra forward push at full look down
+    public const float LookDownCruiserImprovedEyeOffsetForward = 0.26f;   // while seated in cruiser with CruiserImproved compat enabled
     public const float LookDownForwardStart = 0.08f;      // begin pushing
-    public const float LookDownForwardFull = 0.8f;        // reach the full push at this amount
+    public const float LookDownForwardFull = 0.95f;        // reach the full push at this amount
 
-    public const float LookDownHoldingEyeOffsetForward = 0.12f;   // while holding two-handed
+    public const float LookDownShovelSwingEyeOffsetForward = 0.12f;   // during a shovel type swing
     public const float LookDownRunningEyeOffsetForward = 0.12f;   // while running
+    public const float LookDownWalkingEyeOffsetForward = 0.02f;   // while walking
     public const float LookDownJumpingEyeOffsetForward = 0.12f;   // while jumping
     public const float LookDownLadderEyeOffsetForward = 0.12f;    // while on a ladder
-    public const float LookDownCruiserEyeOffsetForward = 0.2f;    // seated in the cruiser with CruiserImproved compat off
+    public const float LookDownCruiserEyeOffsetForward = 0.13f;    // seated in the cruiser with CruiserImproved compat off
     public const float HeldItemFadeStartDistance = 0.35f;   // begin fading once the item is this close
     public const float HeldItemFadeEndDistance = 0.1f;      // reach the strongest fade at this distance
 
@@ -92,7 +94,6 @@ internal static class Constants
 
     public const float SeatedLookDownClamp = 75f;   // max downward look angle while seated, in degrees
 
-    public const float CruiserCompatUpPush = 0f;
 
     public static readonly Vector3 CruiserKeyPositionOffset = new Vector3(0, 0, -0.05f);
     public static readonly Vector3 CruiserKeyRotationOffset = Vector3.zero;
