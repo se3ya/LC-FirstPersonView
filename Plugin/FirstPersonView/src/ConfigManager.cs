@@ -56,7 +56,7 @@ public static class ConfigManager
             "1. Compatibility",
             "Enable CruiserImproved Compatibility",
             false,
-            "Allows CruiserImproveds lean and seat boost to work."
+            "Allows CruiserImproveds lean and seat boost to work. Not recommended as you will slightly start to see your bodies neck on leaning and camera is pushed more forward"
         );
 
         ShowMoreCompanyHat = config.Bind(
