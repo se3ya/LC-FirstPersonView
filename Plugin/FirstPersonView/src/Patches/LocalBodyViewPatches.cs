@@ -44,6 +44,14 @@ internal static class LocalBodyViewPatches
     [HarmonyPrefix]
     private static void SetHoverTipAndCurrentInteractTrigger_Prefix(PlayerControllerB __instance)
     {
-        LocalBodyViewController.AlignCameraForInteractionRay(__instance);
+        try
+        {
+            LocalBodyViewController.AlignCameraForInteractionRay(__instance);
+        }
+        catch (Exception ex)
+        {
+            if (_loggedTickErrors.Add($"ray|{ex.GetType()}: {ex.Message}"))
+                Plugin.Log.LogError($"Interaction ray alignment failed.\n{ex}");
+        }
     }
 }
