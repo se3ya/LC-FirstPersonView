@@ -203,6 +203,12 @@ internal static class CameraRig
         if (TooManyEmotesCompat.IsFirstPersonEmoteActive())
             return bone.TransformPoint(anchor.BoneLocal);
 
+        CameraBlends blends = state.Blends;
+        bool stickToHead = ConfigManager.StickCameraToHeadInAnimations.Value
+            && IsInteractTriggerAnimation(player);
+        blends.StickToHead = Mathf.MoveTowards(
+            blends.StickToHead, stickToHead ? 1f : 0f, Time.deltaTime / Constants.StickToHeadBlendTime);
+
         Vector3 fullFollow = bone.position + (yawRotation * anchor.Local);
         Vector3 rawDeviation = Quaternion.Inverse(yawRotation) * (fullFollow - baseWorld);
 
@@ -227,7 +233,21 @@ internal static class CameraRig
         if (deviationLocal.sqrMagnitude > Constants.MaxFollowOffset * Constants.MaxFollowOffset)
             deviationLocal = deviationLocal.normalized * Constants.MaxFollowOffset;
 
-        return baseWorld + (yawRotation * deviationLocal);
+        Vector3 followWorld = baseWorld + (yawRotation * deviationLocal);
+
+        if (blends.StickToHead <= 0f)
+            return followWorld;
+
+        return Vector3.Lerp(followWorld, bone.TransformPoint(anchor.BoneLocal), blends.StickToHead);
+    }
+
+    private static bool IsInteractTriggerAnimation(PlayerControllerB player)
+    {
+        return player.inSpecialInteractAnimation
+            && player.currentTriggerInAnimationWith != null
+            && !player.isClimbingLadder
+            && !player.inVehicleAnimation
+            && !player.inShockingMinigame;
     }
 
     private static void WarnOnPersistentDrift(EyeAnchorState anchor)
@@ -287,10 +307,12 @@ internal static class CameraRig
             smooth.SmoothedY = Mathf.Lerp(smooth.SmoothedY, rawY, t);
         }
 
-        bool removeBob = ConfigManager.DisableHeadBob.Value
-            && !player.isCrouching
+        bool moving = player.isWalking || player.isSprinting || player.isJumping
+            || player.isFallingFromJump || player.isClimbingLadder;
+
+        bool removeBob = !player.isCrouching
             && blends.Crouch <= 0f
-            && (player.isWalking || player.isSprinting || player.isJumping || player.isFallingFromJump || player.isClimbingLadder);
+            && (moving ? ConfigManager.DisableHeadBob.Value : ConfigManager.DisableIdleHeadBob.Value);
         blends.DisableBob = Mathf.MoveTowards(
             blends.DisableBob, removeBob ? 1f : 0f, Time.deltaTime / Constants.DisableHeadBobBlendTime);
 

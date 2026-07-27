@@ -13,6 +13,7 @@ internal sealed class CameraBlends
     public float Walk;
     public float Jump;
     public float DisableBob;
+    public float StickToHead;
 
     public void Reset()
     {
@@ -24,6 +25,7 @@ internal sealed class CameraBlends
         Walk = 0f;
         Jump = 0f;
         DisableBob = 0f;
+        StickToHead = 0f;
     }
 }
 

@@ -17,6 +17,8 @@ public static class ConfigManager
 
     public static ConfigEntry<float> HandOffsetZ = null!;
     public static ConfigEntry<bool> DisableHeadBob = null!;
+    public static ConfigEntry<bool> DisableIdleHeadBob = null!;
+    public static ConfigEntry<bool> StickCameraToHeadInAnimations = null!;
 
     public static ConfigEntry<bool> EnableMoreCompanyCompatibility = null!;
     public static ConfigEntry<bool> EnableTooManyEmotesCompatibility = null!;
@@ -180,6 +182,20 @@ public static class ConfigManager
             "DisableHeadBob",
             true,
             "Disable head bobbing from walking and running animations."
+        );
+
+        DisableIdleHeadBob = config.Bind(
+            "4. Camera",
+            "DisableIdleHeadBob",
+            false,
+            "Disable up and down from the idle breathing animation while standing still."
+        );
+
+        StickCameraToHeadInAnimations = config.Bind(
+            "4. Camera",
+            "StickCameraToHeadInAnimations",
+            true,
+            "Put the camera on your head during interact animations like the ship lever, item charging and chairs, the way vanilla does."
         );
     }
 }

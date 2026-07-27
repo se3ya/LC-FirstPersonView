@@ -47,6 +47,8 @@ internal static class Constants
     public const float EyeAnchorDriftWarnThreshold = 0.06f;  // drift above this is larger than normal head bob
     public const float EyeAnchorDriftWarnDelay = 5f;     // only warn once the drift has stayed high this long
 
+    public const float StickToHeadBlendTime = 0.12f;  // ease the eye onto the head bone for interact animations
+
     public const float VehiclePushMatchEpsilonSqr = 1e-8f;   // treat the seat camera as untouched within this squared distance
 
     // camera
