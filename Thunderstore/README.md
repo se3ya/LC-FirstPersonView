@@ -33,6 +33,8 @@
   - *Third Person (default)*: Held item will dither for third person hands mode
 - **Hand offset Z** - Vanilla first-person arms offset
 - **Disable Head Bob** - true by default, mostly reduceds the camera from following the up/down head bob when walking, running and jumping
+- **Disable Idle Head Bob** - false by default, removes the up/down from the idle breathing animation while standing still
+- **Stick Camera To Head In Animations** - true by default, puts the camera on your head during interact animations like the ship lever, item charging and chairs, the way vanilla does
 - **Vanilla Arms While Sprinting / Crouching / Jumping / Walking / Emoting / Near Wall** - each true by default, shows the vanilla first-person arms with their matching animation when hands are empty; disable any of them individually to keep the third-person body arms instead.
 
 ## Credits
