@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-21
+
+### Added
+
+- Optional global config shared across all profiles
+- `ShowCosmetics` option to hide all your cosmetics in first person. Made when another mod replaces your player model and cosmetics don't fit it
+- `HideCosmetics` option to hide chosen cosmetic ids in first person for cosmetics that are in the view
+- `InstalledCosmeticIds` automatically generated list of every cosmetic id installed
+- `HideBodyInCruiser` option to hide first person body while seated in a vehicle and use the vanilla first person arms instead
+- Compatibility with **Extended Cosmetics Addon**
+
+### Fixed
+
+- Neck sometimes being seen when looking down
+- Camera sinking
+- Body not visible on cameras because of another mods
+- Multiple other stuff
+
+### Changed
+
+- `DisableIdleHeadBob` merged into `DisableHeadBob`
+- Look down forward eye push now starts at steeper look down angle
+- Removed extra forward eye push while on ladders
+- Optimization stuff
+
 ## [1.4.1] - 2026-07-27
 
 ### Added
