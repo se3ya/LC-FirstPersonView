@@ -23,20 +23,25 @@ internal static class LethalPhonesCompat
 
         _initialized = true;
 
-        bool present = TryResolveTypes();
-        _isInstalled = present && ConfigManager.EnableLethalPhonesCompatibility.Value;
+        _isInstalled = TryResolveTypes();
 
-        if (present)
+        if (_isInstalled)
             Plugin.Log.LogInfo("LethalPhones detected.");
     }
 
     public static bool IsLocalPhoneActive(LocalBodyState state, PlayerControllerB player)
     {
-        if (!_isInstalled || _playerPhoneType == null || _toggledField == null)
+        if (!_isInstalled || !ConfigManager.EnableLethalPhonesCompatibility.Value
+            || _playerPhoneType == null || _toggledField == null)
             return false;
 
         if (state.LethalPhonesPlayerPhone == null)
         {
+            if (Time.unscaledTime < state.LethalPhonesNextScan)
+                return false;
+
+            state.LethalPhonesNextScan = Time.unscaledTime + Constants.LethalPhonesScanInterval;
+
             Transform? phone = player.transform.Find(PhoneChildName);
             if (phone == null)
                 return false;
