@@ -16,7 +16,6 @@ internal static class Constants
     // bone names
     public static readonly string[] HeadBoneNameHints = { "head", "helmet", "visor", "spine.004" };
 
-
     // head triangle culling thresholds
     public const float HeadStrongInfluenceThreshold = 0.35f;
     public const float HeadAverageInfluenceThreshold = 0.30f;
@@ -108,7 +107,6 @@ internal static class Constants
     public const float HeldItemFadeSmoothTime = 0.08f;
 
     public const float SeatedLookDownClamp = 75f;   // max downward look angle while seated, in degrees
-
 
     public static readonly Vector3 CruiserKeyPositionOffset = new Vector3(0, 0, -0.05f);
     public static readonly Vector3 CruiserKeyRotationOffset = Vector3.zero;
