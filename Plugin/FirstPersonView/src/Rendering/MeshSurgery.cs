@@ -13,6 +13,8 @@ internal static class MeshSurgery
     private static readonly Dictionary<int, Mesh?> ReadableCopies = new();
     private static readonly HashSet<int> GeneratedMeshIds = new();   // meshes we built, so we don't capture one as a source
     private static readonly HashSet<int> LoggedUnreadableMeshes = new();
+    private static readonly HashSet<int> FailedHeadlessMeshes = new();
+    private static readonly HashSet<int> FailedHeadlessArmlessMeshes = new();
 
     public static bool IsGenerated(int meshInstanceId) => GeneratedMeshIds.Contains(meshInstanceId);
 
@@ -30,32 +32,58 @@ internal static class MeshSurgery
     {
         Transform? neck = headBone.parent;
         Transform[] bones = skinned.bones;
-        if (neck == null || mesh.bindposes == null || mesh.bindposes.Length < bones.Length)
+        if (neck == null || mesh.bindposes == null || mesh.bindposes.Length == 0)
             return null;
 
+        int bindposeCount = mesh.bindposes.Length;
         int neckIndex = Array.IndexOf(bones, neck);
         int headIndex = Array.IndexOf(bones, headBone);
-        if (neckIndex < 0 || headIndex < 0)
+        if (neckIndex < 0 || headIndex < 0 || neckIndex >= bindposeCount || headIndex >= bindposeCount)
             return null;
 
-        if (!TryGetBodyForward(mesh, bones, headIndex, neckIndex, out Vector3 forward))
-            return null;
+        bool hasForward = TryGetBodyForward(mesh, bones, headIndex, neckIndex, out Vector3 forward);
 
         Vector3 neckPos = BoneBindPosition(mesh, neckIndex);
+        Vector3 neckAxis = BoneBindPosition(mesh, headIndex) - neckPos;
+        float neckSpan = neckAxis.magnitude;
+        if (neckSpan > 1e-6f)
+            neckAxis /= neckSpan;
+
+        float columnStart = neckSpan * Constants.NeckColumnCullStart;
+        float columnRadius = neckSpan * Constants.NeckColumnCullRadius;
+
         BoneWeight[] weights = mesh.boneWeights;
         Vector3[] vertices = mesh.vertices;
+        if (weights.Length < vertices.Length)
+            hasForward = false;
+
         bool[] mask = new bool[vertices.Length];
 
         int marked = 0;
         for (int i = 0; i < vertices.Length; i++)
         {
-            if (DominantBoneIndex(weights[i]) != neckIndex)
-                continue;
-            if (Vector3.Dot(vertices[i] - neckPos, forward) < Constants.PipeCullBehindThreshold)
+            Vector3 offset = vertices[i] - neckPos;
+
+            if (hasForward
+                && DominantBoneIndex(weights[i]) == neckIndex
+                && Vector3.Dot(offset, forward) < Constants.PipeCullBehindThreshold)
             {
                 mask[i] = true;
                 marked++;
+                continue;
             }
+
+            if (neckSpan <= 1e-6f)
+                continue;
+
+            float along = Vector3.Dot(offset, neckAxis);
+            if (along < columnStart)
+                continue;
+            if ((offset - (neckAxis * along)).sqrMagnitude > columnRadius * columnRadius)
+                continue;
+
+            mask[i] = true;
+            marked++;
         }
 
         return marked > 0 ? mask : null;
@@ -64,9 +92,12 @@ internal static class MeshSurgery
     private static bool TryGetBodyForward(Mesh mesh, Transform[] bones, int headIndex, int neckIndex, out Vector3 forward)
     {
         forward = Vector3.zero;
+        int bindposeCount = mesh.bindposes.Length;
         int toeL = FindBoneIndex(bones, "toe.L"), heelL = FindBoneIndex(bones, "heel.02.L");
         int toeR = FindBoneIndex(bones, "toe.R"), heelR = FindBoneIndex(bones, "heel.02.R");
-        if (toeL < 0 || heelL < 0 || toeR < 0 || heelR < 0)
+        if (toeL < 0 || heelL < 0 || toeR < 0 || heelR < 0
+            || toeL >= bindposeCount || heelL >= bindposeCount
+            || toeR >= bindposeCount || heelR >= bindposeCount)
             return false;
 
         Vector3 raw = (BoneBindPosition(mesh, toeL) - BoneBindPosition(mesh, heelL))
@@ -122,24 +153,35 @@ internal static class MeshSurgery
         ReadableCopies.Clear();
         GeneratedMeshIds.Clear();
         LoggedUnreadableMeshes.Clear();
+        FailedHeadlessMeshes.Clear();
+        FailedHeadlessArmlessMeshes.Clear();
     }
 
-    public static Mesh? GetOrCreateHeadlessMesh(Mesh sourceMesh, SkinnedMeshRenderer skinned, Transform headBone)
+    public static Mesh? GetOrCreateHeadlessMesh(
+        Mesh sourceMesh, SkinnedMeshRenderer skinned, Transform headBone)
     {
         int meshId = sourceMesh.GetInstanceID();
         if (HeadlessMeshCache.TryGetValue(meshId, out Mesh cached) && cached != null)
             return cached;
+
+        if (FailedHeadlessMeshes.Contains(meshId))
+            return null;
 
         Mesh? readable = ResolveReadable(sourceMesh, meshId);
         if (readable == null)
             return null;
 
         bool[]? pipeMask = BuildPipeMask(readable, skinned, headBone);
-        Mesh? built = TryBuildFilteredMesh(readable, GetHeadBoneIndices(skinned, headBone), pipeMask, "_FPVHeadless");
+        HashSet<int> headBones = GetHeadBoneIndices(skinned, headBone);
+        Mesh? built = TryBuildFilteredMesh(readable, headBones, pipeMask, "_FPVHeadless");
         if (built != null)
         {
             HeadlessMeshCache[meshId] = built;
             GeneratedMeshIds.Add(built.GetInstanceID());
+        }
+        else
+        {
+            FailedHeadlessMeshes.Add(meshId);
         }
 
         return built;
@@ -152,6 +194,9 @@ internal static class MeshSurgery
         if (HeadlessArmlessMeshCache.TryGetValue(meshId, out Mesh cached) && cached != null)
             return cached;
 
+        if (FailedHeadlessArmlessMeshes.Contains(meshId))
+            return null;
+
         Mesh? readable = ResolveReadable(sourceMesh, meshId);
         if (readable == null)
             return null;
@@ -163,6 +208,7 @@ internal static class MeshSurgery
         }
         catch (Exception)
         {
+            FailedHeadlessArmlessMeshes.Add(meshId);
             return null;
         }
 
@@ -170,6 +216,10 @@ internal static class MeshSurgery
         {
             HeadlessArmlessMeshCache[meshId] = built;
             GeneratedMeshIds.Add(built.GetInstanceID());
+        }
+        else
+        {
+            FailedHeadlessArmlessMeshes.Add(meshId);
         }
 
         return built;
@@ -497,7 +547,7 @@ internal static class MeshSurgery
         try
         {
             Mesh candidate = MakeReadableMeshCopy(sourceMesh);
-            if (candidate.boneWeights.Length > 0 && candidate.bindposes.Length > 0)
+            if (HasUsableSkinningData(candidate))
                 copy = candidate;
             else
                 UnityEngine.Object.Destroy(candidate);
@@ -508,10 +558,43 @@ internal static class MeshSurgery
         }
 
         if (copy == null && LoggedUnreadableMeshes.Add(meshId))
-            Plugin.Log.LogWarning($"Mesh '{sourceMesh.name}' is not readable; the head can't be hidden on this model.");
+            Plugin.Log.LogWarning($"Mesh '{sourceMesh.name}' is not readable and its buffers could not be read back from the GPU so the head cant be hidden on this model.");
 
         ReadableCopies[meshId] = copy;
         return copy;
+    }
+
+    public static bool CanResolveReadable(Mesh sourceMesh)
+    {
+        return sourceMesh != null && ResolveReadable(sourceMesh, sourceMesh.GetInstanceID()) != null;
+    }
+
+    private static bool HasUsableSkinningData(Mesh candidate)
+    {
+        BoneWeight[] weights = candidate.boneWeights;
+        Vector3[] positions = candidate.vertices;
+        if (weights.Length == 0 || candidate.bindposes.Length == 0 || positions.Length == 0)
+            return false;
+
+        int step = Mathf.Max(1, weights.Length / 512);
+
+        bool weighted = false;
+        for (int i = 0; i < weights.Length && !weighted; i += step)
+        {
+            BoneWeight bw = weights[i];
+            weighted = bw.weight0 + bw.weight1 + bw.weight2 + bw.weight3 > 0.5f;
+        }
+
+        if (!weighted)
+            return false;
+
+        for (int i = 0; i < positions.Length; i += step)
+        {
+            if (positions[i].sqrMagnitude > 1e-10f)
+                return true;
+        }
+
+        return false;
     }
 
     private static Mesh MakeReadableMeshCopy(Mesh nonReadableMesh)
@@ -522,18 +605,40 @@ internal static class MeshSurgery
             indexFormat = nonReadableMesh.indexFormat,
         };
 
-        nonReadableMesh.vertexBufferTarget = GraphicsBuffer.Target.Vertex;
-        if (nonReadableMesh.vertexBufferCount > 0)
+        bool completed = false;
+        try
         {
-            using GraphicsBuffer vertexBuffer = nonReadableMesh.GetVertexBuffer(0);
-            int size = vertexBuffer.stride * vertexBuffer.count;
-            byte[] data = new byte[size];
-            vertexBuffer.GetData(data);
-            meshCopy.SetVertexBufferParams(nonReadableMesh.vertexCount, nonReadableMesh.GetVertexAttributes());
-            meshCopy.SetVertexBufferData(data, 0, 0, size);
+            PopulateReadableMeshCopy(nonReadableMesh, meshCopy);
+            completed = true;
+        }
+        finally
+        {
+            if (!completed)
+                UnityEngine.Object.Destroy(meshCopy);
         }
 
-        nonReadableMesh.indexBufferTarget = GraphicsBuffer.Target.Index;
+        return meshCopy;
+    }
+
+    private static void ReadBuffersInto(Mesh nonReadableMesh, Mesh meshCopy)
+    {
+        nonReadableMesh.vertexBufferTarget |= GraphicsBuffer.Target.Vertex;
+        int streamCount = nonReadableMesh.vertexBufferCount;
+        if (streamCount > 0)
+        {
+            meshCopy.SetVertexBufferParams(nonReadableMesh.vertexCount, nonReadableMesh.GetVertexAttributes());
+
+            for (int stream = 0; stream < streamCount; stream++)
+            {
+                using GraphicsBuffer vertexBuffer = nonReadableMesh.GetVertexBuffer(stream);
+                int size = vertexBuffer.stride * vertexBuffer.count;
+                byte[] data = new byte[size];
+                vertexBuffer.GetData(data);
+                meshCopy.SetVertexBufferData(data, 0, 0, size, stream);
+            }
+        }
+
+        nonReadableMesh.indexBufferTarget |= GraphicsBuffer.Target.Index;
         meshCopy.subMeshCount = nonReadableMesh.subMeshCount;
         using (GraphicsBuffer indexBuffer = nonReadableMesh.GetIndexBuffer())
         {
@@ -542,6 +647,22 @@ internal static class MeshSurgery
             indexBuffer.GetData(data);
             meshCopy.SetIndexBufferParams(indexBuffer.count, nonReadableMesh.indexFormat);
             meshCopy.SetIndexBufferData(data, 0, 0, size);
+        }
+    }
+
+    private static void PopulateReadableMeshCopy(Mesh nonReadableMesh, Mesh meshCopy)
+    {
+        GraphicsBuffer.Target originalVertexTarget = nonReadableMesh.vertexBufferTarget;
+        GraphicsBuffer.Target originalIndexTarget = nonReadableMesh.indexBufferTarget;
+
+        try
+        {
+            ReadBuffersInto(nonReadableMesh, meshCopy);
+        }
+        finally
+        {
+            nonReadableMesh.vertexBufferTarget = originalVertexTarget;
+            nonReadableMesh.indexBufferTarget = originalIndexTarget;
         }
 
         int indexOffset = 0;
@@ -554,7 +675,5 @@ internal static class MeshSurgery
 
         meshCopy.bindposes = nonReadableMesh.bindposes;
         meshCopy.RecalculateBounds();
-
-        return meshCopy;
     }
 }
