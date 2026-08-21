@@ -6,7 +6,6 @@ namespace FirstPersonView;
 internal sealed class CameraBlends
 {
     public float Crouch;
-    public float Ladder;
     public float BobDamp;
     public float ShovelSwing;
     public float Run;
@@ -14,11 +13,11 @@ internal sealed class CameraBlends
     public float Jump;
     public float DisableBob;
     public float StickToHead;
+    public float Ladder;
 
     public void Reset()
     {
         Crouch = 0f;
-        Ladder = 0f;
         BobDamp = 0f;
         ShovelSwing = 0f;
         Run = 0f;
@@ -26,6 +25,7 @@ internal sealed class CameraBlends
         Jump = 0f;
         DisableBob = 0f;
         StickToHead = 0f;
+        Ladder = 0f;
     }
 }
 
@@ -33,6 +33,8 @@ internal sealed class BobSmoothing
 {
     public Vector3 SmoothedDeviationLocal;
     public bool DeviationInitialized;
+    public Vector3 SmoothedLadderLocal;
+    public bool LadderInitialized;
     public float SmoothedY;
     public bool YInitialized;
 
@@ -40,6 +42,8 @@ internal sealed class BobSmoothing
     {
         SmoothedDeviationLocal = Vector3.zero;
         DeviationInitialized = false;
+        SmoothedLadderLocal = Vector3.zero;
+        LadderInitialized = false;
         SmoothedY = 0f;
         YInitialized = false;
     }
@@ -103,6 +107,7 @@ internal sealed class LocalBodyState
     public LODGroup? PlayerLodGroup;
     public int BodyLodIndex = -1;
     public float BodyLodNextScan;
+    public float CosmeticBodyNextScan;
 
     public Transform? LeftArmBone;
     public Transform? RightArmBone;
@@ -134,4 +139,6 @@ internal sealed class LocalBodyState
     public bool MovementArmsActive;
     public float MovementArmsTimer;
     public Component? LethalPhonesPlayerPhone;
+    public float LethalPhonesNextScan;
+    public Component? MoreCompanyCosmeticApplication;
 }
