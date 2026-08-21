@@ -1,4 +1,8 @@
+using System.Collections.Generic;
+
 using BepInEx.Configuration;
+
+using FirstPersonView.Compat;
 
 namespace FirstPersonView;
 
@@ -17,8 +21,8 @@ public static class ConfigManager
 
     public static ConfigEntry<float> HandOffsetZ = null!;
     public static ConfigEntry<bool> DisableHeadBob = null!;
-    public static ConfigEntry<bool> DisableIdleHeadBob = null!;
     public static ConfigEntry<bool> StickCameraToHeadInAnimations = null!;
+    public static ConfigEntry<bool> HideBodyInCruiser = null!;
 
     public static ConfigEntry<bool> EnableMoreCompanyCompatibility = null!;
     public static ConfigEntry<bool> EnableTooManyEmotesCompatibility = null!;
@@ -30,8 +34,11 @@ public static class ConfigManager
     public static ConfigEntry<bool> ShowMoreCompanyRightLowerArm = null!;
     public static ConfigEntry<bool> ShowMoreCompanyLeftShin = null!;
     public static ConfigEntry<bool> ShowMoreCompanyRightShin = null!;
+    public static ConfigEntry<bool> ShowCosmetics = null!;
+    public static ConfigEntry<string> HideCosmetics = null!;
+    public static ConfigEntry<string> InstalledCosmeticIds = null!;
 
-    internal static void Initialize(ConfigFile config)
+    internal static void Initialize(ConfigFile config, bool registerWithLethalConfig)
     {
         EnableMoreCompanyCompatibility = config.Bind(
             "1. Compatibility",
@@ -101,6 +108,27 @@ public static class ConfigManager
             "ShowRightShin",
             true,
             "Show right shin cosmetics."
+        );
+
+        ShowCosmetics = config.Bind(
+            "1. Compatibility",
+            "ShowCosmetics",
+            true,
+            "Show your cosmetics in first-person. Make this false if another mod replaces your player model and your cosmetics sit wrong on model."
+        );
+
+        HideCosmetics = config.Bind(
+            "1. Compatibility",
+            "HideCosmetics",
+            "",
+            "Comma separated cosmetic ids to hide in first-person for cosmetics that are in the view. Copy ids you want from InstalledCosmeticIds."
+        );
+
+        InstalledCosmeticIds = config.Bind(
+            "1. Compatibility",
+            "InstalledCosmeticIds",
+            "",
+            "Every cosmetic id you have installed. This list generates automatically, editing it does nothing."
         );
 
         HeldItemFadeStyle = config.Bind(
@@ -181,14 +209,7 @@ public static class ConfigManager
             "4. Camera",
             "DisableHeadBob",
             true,
-            "Disable head bobbing from walking and running animations."
-        );
-
-        DisableIdleHeadBob = config.Bind(
-            "4. Camera",
-            "DisableIdleHeadBob",
-            false,
-            "Disable up and down from the idle breathing animation while standing still."
+            "Disable head bobbing from walking and running animations and up and down from the idle breathing animation."
         );
 
         StickCameraToHeadInAnimations = config.Bind(
@@ -197,5 +218,25 @@ public static class ConfigManager
             true,
             "Put the camera on your head during interact animations like the ship lever, item charging and chairs, the way vanilla does."
         );
+
+        HideBodyInCruiser = config.Bind(
+            "4. Camera",
+            "HideBodyInCruiser",
+            false,
+            "Hide first-person body while seated in vehicle and use vanilla first person arms."
+        );
+
+        if (registerWithLethalConfig && LethalConfigCompat.Present)
+            LethalConfigCompat.Register(CollectEntries(config));
+    }
+
+    private static List<ConfigEntryBase> CollectEntries(ConfigFile config)
+    {
+        List<ConfigEntryBase> entries = new();
+
+        foreach (KeyValuePair<ConfigDefinition, ConfigEntryBase> entry in config)
+            entries.Add(entry.Value);
+
+        return entries;
     }
 }
