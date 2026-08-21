@@ -6,4 +6,5 @@ internal static class ModGUIDs
     public const string TooManyEmotes = "FlipMods.TooManyEmotes";
     public const string ImmersiveVisor = "ImmersiveVisor";
     public const string LethalPhones = "LethalPhones";
+    public const string LethalConfig = "ainavt.lc.lethalconfig";
 }
