@@ -46,9 +46,6 @@ internal static class CameraRig
         blends.Jump = Mathf.MoveTowards(
             blends.Jump, (player.isJumping || player.isFallingFromJump) ? 1f : 0f, Time.deltaTime / Constants.JumpingBlendTime);
 
-        blends.Ladder = Mathf.MoveTowards(
-            blends.Ladder, player.isClimbingLadder ? 1f : 0f, Time.deltaTime / Constants.LadderBlendTime);
-
         float lookDown = Vector3.Dot(camTransform.forward, -up);
         float lookDownRamp = Mathf.SmoothStep(0f, 1f,
             Mathf.InverseLerp(Constants.LookDownForwardStart, Constants.LookDownForwardFull, lookDown));
@@ -57,11 +54,10 @@ internal static class CameraRig
             ? Constants.LookDownCruiserEyeOffsetForward
             : Constants.LookDownEyeOffsetForward;
 
-        float statePush = Mathf.Max(blends.Ladder * Constants.LookDownLadderEyeOffsetForward,
-            Mathf.Max(blends.ShovelSwing * Constants.LookDownShovelSwingEyeOffsetForward,
-                Mathf.Max(blends.Run * Constants.LookDownRunningEyeOffsetForward,
-                    Mathf.Max(blends.Walk * Constants.LookDownWalkingEyeOffsetForward,
-                        blends.Jump * Constants.LookDownJumpingEyeOffsetForward))));
+        float statePush = Mathf.Max(blends.ShovelSwing * Constants.LookDownShovelSwingEyeOffsetForward,
+            Mathf.Max(blends.Run * Constants.LookDownRunningEyeOffsetForward,
+                Mathf.Max(blends.Walk * Constants.LookDownWalkingEyeOffsetForward,
+                    blends.Jump * Constants.LookDownJumpingEyeOffsetForward)));
 
         float forwardOffset = lookDownRamp * (lookDownEyeOffsetForward + statePush);
 
@@ -77,12 +73,12 @@ internal static class CameraRig
         float totalRight = Vector3.Dot(toAnchor, flatRight);
         float totalUp = Vector3.Dot(toAnchor, up);
 
+        float lookDownForwardFloor = Mathf.Max(forwardOffset, Constants.EyeForwardFloor);
         if (!player.inSpecialInteractAnimation)
-            totalForward = Mathf.Max(totalForward, Constants.EyeForwardFloor);
+            totalForward = Mathf.Max(totalForward, lookDownForwardFloor);
 
         totalForward = ClampTravelToWall(
-            baseWorld, flatForward, totalForward,
-            Constants.WallCollisionForwardProbeRadius, Constants.WallCollisionForwardMargin);
+            baseWorld, flatForward, totalForward, Constants.WallCollisionForwardProbeRadius);
 
         Vector3 horizontalPoint = baseWorld + (flatForward * totalForward) + (flatRight * totalRight);
         Vector3 target = ResolveVerticalClearance(horizontalPoint, up, totalUp);
@@ -200,6 +196,7 @@ internal static class CameraRig
         if (!anchor.Captured)
             return baseWorld;
 
+
         if (TooManyEmotesCompat.IsFirstPersonEmoteActive())
             return bone.TransformPoint(anchor.BoneLocal);
 
@@ -216,6 +213,10 @@ internal static class CameraRig
         {
             float t = 1f - Mathf.Exp(-Time.deltaTime / Constants.EyeAnchorDriftTau);
             anchor.Drift = Vector3.Lerp(anchor.Drift, rawDeviation, t);
+
+            float limit = Constants.EyeAnchorDriftLimit;
+            if (anchor.Drift.sqrMagnitude > limit * limit)
+                anchor.Drift = anchor.Drift.normalized * limit;
         }
 
         WarnOnPersistentDrift(anchor);
@@ -228,6 +229,7 @@ internal static class CameraRig
         deviationLocal.y = DampHeadBob(state, player, deviationLocal.y);
 
         deviationLocal = StabilizeSprintBob(state, player, deviationLocal);
+        deviationLocal = StabilizeLadder(state, player, deviationLocal);
         deviationLocal = NeckGuardedFollow(state, player, deviationLocal);
 
         if (deviationLocal.sqrMagnitude > Constants.MaxFollowOffset * Constants.MaxFollowOffset)
@@ -235,20 +237,24 @@ internal static class CameraRig
 
         Vector3 followWorld = baseWorld + (yawRotation * deviationLocal);
 
-        if (blends.StickToHead <= 0f)
-            return followWorld;
+        if (blends.StickToHead > 0f)
+            followWorld = Vector3.Lerp(followWorld, bone.TransformPoint(anchor.BoneLocal), blends.StickToHead);
 
-        return Vector3.Lerp(followWorld, bone.TransformPoint(anchor.BoneLocal), blends.StickToHead);
+        return followWorld;
     }
 
     private static bool IsInteractTriggerAnimation(PlayerControllerB player)
     {
+        InteractTrigger? trigger = player.currentTriggerInAnimationWith;
+
         return player.inSpecialInteractAnimation
-            && player.currentTriggerInAnimationWith != null
+            && trigger != null
+            && !trigger.isLadder
             && !player.isClimbingLadder
             && !player.inVehicleAnimation
             && !player.inShockingMinigame;
     }
+
 
     private static void WarnOnPersistentDrift(EyeAnchorState anchor)
     {
@@ -296,23 +302,26 @@ internal static class CameraRig
         BobSmoothing smooth = state.BobSmooth;
         CameraBlends blends = state.Blends;
 
+        bool allowed = !player.isCrouching
+            && blends.Crouch <= 0f
+            && ConfigManager.DisableHeadBob.Value;
+
         if (!smooth.YInitialized)
         {
             smooth.SmoothedY = rawY;
             smooth.YInitialized = true;
         }
-        else
-        {
-            float t = 1f - Mathf.Exp(-Time.deltaTime / Constants.DisableHeadBobTau);
-            smooth.SmoothedY = Mathf.Lerp(smooth.SmoothedY, rawY, t);
-        }
 
-        bool moving = player.isWalking || player.isSprinting || player.isJumping
-            || player.isFallingFromJump || player.isClimbingLadder;
+        bool converged = Mathf.Abs(rawY - smooth.SmoothedY) <= Constants.DisableHeadBobEngageBand;
+        bool removeBob = allowed && (blends.DisableBob > 0f || converged);
 
-        bool removeBob = !player.isCrouching
-            && blends.Crouch <= 0f
-            && (moving ? ConfigManager.DisableHeadBob.Value : ConfigManager.DisableIdleHeadBob.Value);
+        if (removeBob && blends.DisableBob <= 0f)
+            smooth.SmoothedY = rawY;
+
+        float tau = removeBob ? Constants.DisableHeadBobTau : Constants.DisableHeadBobBlendTime;
+        float t = 1f - Mathf.Exp(-Time.deltaTime / tau);
+        smooth.SmoothedY = Mathf.Lerp(smooth.SmoothedY, rawY, t);
+
         blends.DisableBob = Mathf.MoveTowards(
             blends.DisableBob, removeBob ? 1f : 0f, Time.deltaTime / Constants.DisableHeadBobBlendTime);
 
@@ -344,6 +353,41 @@ internal static class CameraRig
         return Vector3.Lerp(deviationLocal, smooth.SmoothedDeviationLocal, damp);
     }
 
+    private static bool IsLadderSequence(PlayerControllerB player)
+    {
+        if (player.isClimbingLadder)
+            return true;
+
+        InteractTrigger? trigger = player.currentTriggerInAnimationWith;
+
+        return player.inSpecialInteractAnimation && trigger != null && trigger.isLadder;
+    }
+
+    private static Vector3 StabilizeLadder(
+        LocalBodyState state, PlayerControllerB player, Vector3 deviationLocal)
+    {
+        BobSmoothing smooth = state.BobSmooth;
+        CameraBlends blends = state.Blends;
+
+        bool onLadder = IsLadderSequence(player);
+        float blendTime = onLadder ? Constants.LadderBlendTime : Constants.LadderReleaseTime;
+        blends.Ladder = Mathf.MoveTowards(
+            blends.Ladder, onLadder ? 1f : 0f, Time.deltaTime / blendTime);
+
+        if (!smooth.LadderInitialized)
+        {
+            smooth.SmoothedLadderLocal = deviationLocal;
+            smooth.LadderInitialized = true;
+        }
+        else
+        {
+            float t = 1f - Mathf.Exp(-Time.deltaTime / Constants.LadderStabilizeTau);
+            smooth.SmoothedLadderLocal = Vector3.Lerp(smooth.SmoothedLadderLocal, deviationLocal, t);
+        }
+
+        return Vector3.Lerp(deviationLocal, smooth.SmoothedLadderLocal, blends.Ladder);
+    }
+
     private static Vector3 NeckGuardedFollow(LocalBodyState state, PlayerControllerB player, Vector3 live)
     {
         NeckGuardState guard = state.NeckGuard;
@@ -360,7 +404,6 @@ internal static class CameraRig
             guard.Engaged = false;
             guard.FloorActive = false;
             guard.CrouchRestZ = live.z;
-            guard.CrouchRestY = live.y;
             guard.Initialized = true;
             return live;
         }
@@ -377,18 +420,18 @@ internal static class CameraRig
             guard.Tail -= Time.deltaTime;
 
         bool swingWindow = swinging || guard.Tail > 0f;
-        bool locked = guard.Latched && player.isCrouching && swingWindow;
+        bool locked = guard.Latched && swingWindow;
 
         if (player.isCrouching && !swingWindow)
         {
             guard.CrouchRestZ = live.z;
-            guard.CrouchRestY = live.y;
         }
 
-        bool crouchGuard = swingWindow && player.isCrouching && !guard.Latched;
+        bool crouchGuard = swingWindow && !guard.Latched;
         if (crouchGuard && !guard.FloorActive)
         {
             guard.FloorZ = Mathf.Max(guard.CrouchRestZ, Constants.NeckGuardCrouchFloor);
+            guard.CrouchRestY = live.y;
             guard.FloorActive = true;
         }
         else if (!crouchGuard)
@@ -404,26 +447,23 @@ internal static class CameraRig
             guard.SwingRest = live;
         Vector3 rest = guard.SwingRest;
 
+        float stance = player.isCrouching ? 1f : state.Blends.Crouch;
+
         Vector3 target = live;
         if (locked)
         {
-            target.z = Mathf.Max(live.z, rest.z);
+            target.z = Mathf.Max(live.z, Mathf.Lerp(live.z, rest.z, stance));
             if (swinging)
                 target.y = live.y >= rest.y
                     ? rest.y + ((live.y - rest.y) * Constants.NeckGuardUpFollow)
                     : rest.y + ((live.y - rest.y) * Constants.NeckGuardDownFollow);
             else
-                target.y = rest.y;
+                target.y = Mathf.Lerp(live.y, Mathf.Min(live.y, rest.y), stance);
         }
         else if (guard.FloorActive)
         {
-            target.z = Mathf.Max(live.z, guard.FloorZ);
-            float restY = guard.CrouchRestY;
-            target.y = swinging
-                ? (live.y >= restY
-                    ? restY + ((live.y - restY) * Constants.NeckGuardUpFollow)
-                    : restY + ((live.y - restY) * Constants.NeckGuardDownFollow))
-                : restY;
+            target.z = Mathf.Max(live.z, Mathf.Lerp(live.z, guard.FloorZ, stance));
+            target.y = Mathf.Lerp(live.y, Mathf.Min(live.y, guard.CrouchRestY), stance);
         }
 
         bool swingSmoothing = locked || (swingWindow && player.isCrouching);
@@ -437,7 +477,7 @@ internal static class CameraRig
         else
             tau = Constants.NeckGuardCalmTau;
 
-        float tauY = swingSmoothing ? Constants.NeckGuardSwingTau : Constants.NeckGuardCalmTau;
+        float tauY = swingWindow ? Constants.NeckGuardSwingTau : tau;
 
         float vx = guard.EyeVelocity.x;
         float vy = guard.EyeVelocity.y;
@@ -451,17 +491,17 @@ internal static class CameraRig
         return guard.EyeDeviation;
     }
 
-    private static float ClampTravelToWall(Vector3 origin, Vector3 dir, float distance, float radius, float margin)
+    private static float ClampTravelToWall(Vector3 origin, Vector3 dir, float distance, float radius)
     {
         StartOfRound? sor = StartOfRound.Instance;
         if (sor == null || distance <= 0f)
             return distance;
 
         if (Physics.SphereCast(
-                origin, Mathf.Max(0.01f, radius), dir, out RaycastHit hit, distance + margin,
+                origin, Mathf.Max(0.01f, radius), dir, out RaycastHit hit, distance,
                 sor.collidersAndRoomMask, QueryTriggerInteraction.Ignore))
         {
-            return Mathf.Max(0f, hit.distance - margin);
+            return Mathf.Max(0f, hit.distance);
         }
 
         return distance;
@@ -470,7 +510,7 @@ internal static class CameraRig
     private static Vector3 ResolveVerticalClearance(Vector3 horizontalPoint, Vector3 up, float totalUp)
     {
         Vector3 dir = totalUp >= 0f ? up : -up;
-        float travel = ClampTravelToWall(horizontalPoint, dir, Mathf.Abs(totalUp), Constants.WallCollisionRadius, 0f);
+        float travel = ClampTravelToWall(horizontalPoint, dir, Mathf.Abs(totalUp), Constants.WallCollisionRadius);
         return horizontalPoint + (dir * travel);
     }
 
