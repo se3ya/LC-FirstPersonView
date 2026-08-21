@@ -17,16 +17,17 @@ internal static class TooManyEmotesCompat
 
         _initialized = true;
 
-        bool present = Reflection.FindAssembly("TooManyEmotes") != null;
-        _isInstalled = present && ConfigManager.EnableTooManyEmotesCompatibility.Value;
+        _isInstalled = Reflection.FindAssembly("TooManyEmotes") != null;
 
-        if (present)
+        if (_isInstalled)
             Plugin.Log.LogInfo("TooManyEmotes detected.");
     }
 
     public static bool IsFirstPersonEmoteActive()
     {
-        return _isInstalled && IsFirstPersonEmoteActiveTyped();
+        return _isInstalled
+            && ConfigManager.EnableTooManyEmotesCompatibility.Value
+            && IsFirstPersonEmoteActiveTyped();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
