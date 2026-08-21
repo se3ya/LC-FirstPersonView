@@ -17,6 +17,11 @@ internal static class FirstPersonBody
     private static bool hideActive;
     private static SkinnedMeshRenderer? fpArms;
     private static bool fpArmsIntended;
+    private static bool bodyDisabledWarned;
+    private static float bodyDisabledSince;
+    private static bool bodyLayerMoveLogged;
+
+    public static bool HideActive => hideActive;
 
     public static void ApplyBodyRendering(LocalBodyState state, bool showBody, bool useVanillaArms)
     {
@@ -28,13 +33,16 @@ internal static class FirstPersonBody
         {
             if (player.thisPlayerModel != null)
             {
-                if (!player.thisPlayerModel.enabled)
-                    player.thisPlayerModel.enabled = true;
+                WarnIfBodyRendererDisabled(player.thisPlayerModel);
+                RestoreBodyLayer(state, player.thisPlayerModel);
+
                 if (player.thisPlayerModel.shadowCastingMode != ShadowCastingMode.On)
                     player.thisPlayerModel.shadowCastingMode = ShadowCastingMode.On;
                 if (player.thisPlayerModel.motionVectorGenerationMode != MotionVectorGenerationMode.ForceNoMotion)
                     player.thisPlayerModel.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
             }
+
+            bool modelReplaced = IsPlayerModelReplaced(player);
 
             if (state.PlayerLodGroup != null)
             {
@@ -46,13 +54,18 @@ internal static class FirstPersonBody
                     state.BodyLodIndex = FindLodIndex(state.PlayerLodGroup, player.thisPlayerModel);
                     state.BodyLodNextScan = Time.unscaledTime + 0.5f;
                 }
-                state.PlayerLodGroup.ForceLOD(state.BodyLodIndex < 0 ? 0 : state.BodyLodIndex);
+
+                state.PlayerLodGroup.ForceLOD(
+                    modelReplaced ? -1 : (state.BodyLodIndex < 0 ? 0 : state.BodyLodIndex));
             }
 
-            if (player.thisPlayerModelLOD1 != null && player.thisPlayerModelLOD1.enabled)
-                player.thisPlayerModelLOD1.enabled = false;
-            if (player.thisPlayerModelLOD2 != null && player.thisPlayerModelLOD2.enabled)
-                player.thisPlayerModelLOD2.enabled = false;
+            if (!modelReplaced)
+            {
+                if (player.thisPlayerModelLOD1 != null && player.thisPlayerModelLOD1.enabled)
+                    player.thisPlayerModelLOD1.enabled = false;
+                if (player.thisPlayerModelLOD2 != null && player.thisPlayerModelLOD2.enabled)
+                    player.thisPlayerModelLOD2.enabled = false;
+            }
 
             SetFpArmsEnabled(player, useVanillaArms);
         }
@@ -64,6 +77,49 @@ internal static class FirstPersonBody
 
             SetFpArmsEnabled(player, true);
         }
+    }
+
+    private static void RestoreBodyLayer(LocalBodyState state, SkinnedMeshRenderer body)
+    {
+        if (body.gameObject.layer != Constants.EnemiesNotRenderedLayer)
+            return;
+
+        Transform? root = state.ModelRoot;
+        int target = root != null && root.gameObject.layer != Constants.EnemiesNotRenderedLayer
+            ? root.gameObject.layer
+            : 0;
+
+        body.gameObject.layer = target;
+
+        if (bodyLayerMoveLogged)
+            return;
+
+        bodyLayerMoveLogged = true;
+        Plugin.Log.LogInfo($"Your body renderer was on layer {Constants.EnemiesNotRenderedLayer} which most cameras do not draw. Moved it to layer {target} so it shows on cameras.");
+    }
+
+    private static void WarnIfBodyRendererDisabled(SkinnedMeshRenderer body)
+    {
+        if (bodyDisabledWarned)
+            return;
+
+        if (body.enabled || CosmeticBodyView.Active)
+        {
+            bodyDisabledSince = 0f;
+            return;
+        }
+
+        if (bodyDisabledSince <= 0f)
+        {
+            bodyDisabledSince = Time.unscaledTime;
+            return;
+        }
+
+        if (Time.unscaledTime - bodyDisabledSince < Constants.BodyDisabledWarnDelay)
+            return;
+
+        bodyDisabledWarned = true;
+        Plugin.Log.LogError("Your body renderer was disabled by another mod and nothing rigged to your skeleton replaced it so First-Person View cannot show your body. Mods such as ModelReplacementAPI are not supported and won't be supported.");
     }
 
     private static void SetFpArmsEnabled(PlayerControllerB player, bool enabled)
@@ -96,6 +152,11 @@ internal static class FirstPersonBody
     }
 
     // Vanilla never draws layer 23
+    private static bool IsPlayerModelReplaced(PlayerControllerB player)
+    {
+        return player.thisPlayerModel != null && !player.thisPlayerModel.enabled;
+    }
+
     public static void ApplyFirstPersonCameraLayer(LocalBodyState state, bool showBody)
     {
         Camera? camera = state.GameplayCamera;
@@ -114,6 +175,7 @@ internal static class FirstPersonBody
     public static void HideHead(LocalBodyState state, bool hideArms)
     {
         hideArmsInFirstPerson = hideArms;
+        hideCamera = state.GameplayCamera;
         state.HeadHidden = true;
 
         SkinnedMeshRenderer? body = state.BodyRenderer;
@@ -151,6 +213,7 @@ internal static class FirstPersonBody
     public static void RestoreHead(LocalBodyState state)
     {
         hideActive = false;
+        hideCamera = state.GameplayCamera;
 
         SkinnedMeshRenderer? body = state.BodyRenderer;
         if (body != null && state.OriginalBodyMesh != null && body.sharedMesh != state.OriginalBodyMesh)
@@ -173,6 +236,13 @@ internal static class FirstPersonBody
         Mesh? full = state.OriginalBodyMesh;
         if (body == null || full == null)
             return;
+
+        if (!body.enabled)
+        {
+            if (state.ShadowProxy != null)
+                state.ShadowProxy.enabled = false;
+            return;
+        }
 
         if (state.ShadowProxy == null)
         {
@@ -207,6 +277,8 @@ internal static class FirstPersonBody
 
     public static void ApplyForCamera(Camera camera)
     {
+        SetArmsVisibleForCamera(fpArmsIntended && camera == hideCamera);
+
         SkinnedMeshRenderer? body = hideRenderer;
         if (!hideActive || body == null)
             return;
@@ -223,15 +295,21 @@ internal static class FirstPersonBody
         {
             body.sharedMesh = originalMesh;
         }
+    }
 
-        if (fpArms != null)
-            fpArms.enabled = fpArmsIntended && camera == hideCamera;
+    private static void SetArmsVisibleForCamera(bool visible)
+    {
+        if (fpArms == null)
+            return;
+
+        if (fpArms.enabled != visible)
+            fpArms.enabled = visible;
     }
 
     public static void RestoreAfterCamera(Camera camera)
     {
-        if (fpArms != null && fpArms.enabled != fpArmsIntended)
-            fpArms.enabled = fpArmsIntended;
+        if (camera == hideCamera)
+            SetArmsVisibleForCamera(fpArmsIntended);
 
         SkinnedMeshRenderer? body = hideRenderer;
         if (body == null || originalMesh == null)
@@ -252,5 +330,8 @@ internal static class FirstPersonBody
         hideCamera = null;
         fpArms = null;
         fpArmsIntended = false;
+        bodyDisabledWarned = false;
+        bodyDisabledSince = 0f;
+        bodyLayerMoveLogged = false;
     }
 }
