@@ -196,7 +196,6 @@ internal static class CameraRig
         if (!anchor.Captured)
             return baseWorld;
 
-
         if (TooManyEmotesCompat.IsFirstPersonEmoteActive())
             return bone.TransformPoint(anchor.BoneLocal);
 
@@ -254,7 +253,6 @@ internal static class CameraRig
             && !player.inVehicleAnimation
             && !player.inShockingMinigame;
     }
-
 
     private static void WarnOnPersistentDrift(EyeAnchorState anchor)
     {
