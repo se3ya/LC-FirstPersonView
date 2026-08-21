@@ -15,6 +15,7 @@ internal static class HeldItemView
     private static Renderer[] renderers = Array.Empty<Renderer>();
     private static MotionVectorGenerationMode[] originalMotionModes = Array.Empty<MotionVectorGenerationMode>();
     private static Material[] materials = Array.Empty<Material>();
+    private static bool materialsResolved;
     private static Renderer? boundsSource;
     private static Vector3[] localVertices = Array.Empty<Vector3>();
     private static Camera? camera;
@@ -50,12 +51,14 @@ internal static class HeldItemView
                 : Array.Empty<Renderer>();
             SuppressMotionVectors();
             materials = wantFade ? MaterialDither.CollectInstancedMaterials(renderers) : Array.Empty<Material>();
+            materialsResolved = wantFade;
             boundsSource = ResolveBoundsSource(tracked, renderers);
             localVertices = ResolveLocalVertices(boundsSource);
         }
-        else if (wantFade && materials.Length == 0 && renderers.Length > 0)
+        else if (wantFade && !materialsResolved && renderers.Length > 0)
         {
             materials = MaterialDither.CollectInstancedMaterials(renderers);
+            materialsResolved = true;
         }
 
         camera = state.GameplayCamera;
@@ -239,6 +242,7 @@ internal static class HeldItemView
         trackedItem = null;
         renderers = Array.Empty<Renderer>();
         materials = Array.Empty<Material>();
+        materialsResolved = false;
         boundsSource = null;
         localVertices = Array.Empty<Vector3>();
         camera = null;
