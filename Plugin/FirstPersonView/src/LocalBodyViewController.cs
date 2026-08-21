@@ -34,6 +34,7 @@ internal static class LocalBodyViewController
         FirstPersonBody.Reset();
         HeldItemView.Reset();
         MoreCompanyCompat.Reset();
+        CosmeticBodyView.Reset();
         MeshSurgery.ClearCaches();
 
         if (renderCallbacksHooked)
@@ -65,7 +66,9 @@ internal static class LocalBodyViewController
             }
         }
 
-        bool showBody = player.isPlayerControlled && !player.isPlayerDead;
+        bool alive = player.isPlayerControlled && !player.isPlayerDead;
+        bool hideForVehicle = alive && HideBodyForVehicle(player);
+        bool showBody = alive && !hideForVehicle;
         LocalBodyShown = showBody;
 
         bool holdingArms = false;
@@ -173,11 +176,21 @@ internal static class LocalBodyViewController
 
         try
         {
-            MoreCompanyCompat.ApplyLocalCosmeticVisibility(player, showBody, useVanillaArms);
+            MoreCompanyCompat.ApplyLocalCosmeticVisibility(
+                state, player, showBody, useVanillaArms, hideForVehicle);
         }
         catch (Exception ex)
         {
             LogStageError("MoreCompany cosmetics", ex);
+        }
+
+        try
+        {
+            RefreshCosmeticBodies(state, showBody, useVanillaArms);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Cosmetic body", ex);
         }
     }
 
@@ -204,9 +217,55 @@ internal static class LocalBodyViewController
             CameraRig.AlignForInteractionRay(state);
     }
 
+    private static readonly List<SkinnedMeshRenderer> _riggedBodyScratch = new();
+
+    private static readonly List<CosmeticBodyView.RiggedBodyCandidate> _candidateScratch = new();
+
+    private static void RefreshCosmeticBodies(LocalBodyState state, bool showBody, bool useVanillaArms)
+    {
+        if (!showBody || !state.HeadHidden || state.HeadBone == null)
+        {
+            if (CosmeticBodyView.Active)
+                CosmeticBodyView.RestoreAll();
+            state.CosmeticBodyNextScan = 0f;
+            return;
+        }
+
+        CosmeticBodyView.SetFrameState(state.GameplayCamera, useVanillaArms);
+
+        if (Time.unscaledTime < state.CosmeticBodyNextScan)
+            return;
+
+        state.CosmeticBodyNextScan = Time.unscaledTime + Constants.CosmeticBodyScanInterval;
+
+        _candidateScratch.Clear();
+
+        MoreCompanyCompat.CollectRiggedBodies(state.HeadBone, _riggedBodyScratch);
+        foreach (SkinnedMeshRenderer renderer in _riggedBodyScratch)
+        {
+            _candidateScratch.Add(new CosmeticBodyView.RiggedBodyCandidate
+            {
+                Renderer = renderer,
+                HeadBone = state.HeadBone,
+                LeftArmBone = state.LeftArmBone,
+                RightArmBone = state.RightArmBone,
+            });
+        }
+
+        CosmeticBodyView.Rebuild(_candidateScratch);
+    }
+
+    private static bool HideBodyForVehicle(PlayerControllerB player)
+    {
+        return ConfigManager.HideBodyInCruiser.Value && player.inVehicleAnimation;
+    }
+
     private static bool IsInCruiserImprovedSeat(PlayerControllerB player)
     {
         if (!ConfigManager.EnableCruiserImprovedCompatibility.Value || !player.inVehicleAnimation)
+            return false;
+
+        if (HideBodyForVehicle(player))
             return false;
 
         InteractTrigger? trigger = player.currentTriggerInAnimationWith;
@@ -359,6 +418,7 @@ internal static class LocalBodyViewController
         (FirstPersonBody.ApplyForCamera, FirstPersonBody.RestoreAfterCamera),
         (HeldItemView.ApplyForCamera, HeldItemView.RestoreAfterCamera),
         (MoreCompanyCompat.ApplyForCamera, MoreCompanyCompat.RestoreAfterCamera),
+        (CosmeticBodyView.ApplyForCamera, CosmeticBodyView.RestoreAfterCamera),
     };
 
     private static void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
