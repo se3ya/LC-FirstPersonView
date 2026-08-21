@@ -452,25 +452,40 @@ internal static class MeshSurgery
 
     private static bool ShouldCullTriangle(int a, int b, int c, float[] headInfluence, bool[] dominantHead)
     {
-        float influenceA = a >= 0 && a < headInfluence.Length ? headInfluence[a] : 0f;
-        float influenceB = b >= 0 && b < headInfluence.Length ? headInfluence[b] : 0f;
-        float influenceC = c >= 0 && c < headInfluence.Length ? headInfluence[c] : 0f;
+        float influenceA = HeadInfluenceAt(a, headInfluence);
+        float influenceB = HeadInfluenceAt(b, headInfluence);
+        float influenceC = HeadInfluenceAt(c, headInfluence);
 
-        int strongInfluenceCount = 0;
-        if (influenceA >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
-        if (influenceB >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
-        if (influenceC >= Constants.HeadStrongInfluenceThreshold) strongInfluenceCount++;
+        int strongInfluenceCount =
+            StrongInfluenceCount(influenceA)
+            + StrongInfluenceCount(influenceB)
+            + StrongInfluenceCount(influenceC);
 
-        int dominantHeadCount = 0;
-        if (a >= 0 && a < dominantHead.Length && dominantHead[a]) dominantHeadCount++;
-        if (b >= 0 && b < dominantHead.Length && dominantHead[b]) dominantHeadCount++;
-        if (c >= 0 && c < dominantHead.Length && dominantHead[c]) dominantHeadCount++;
+        int dominantHeadCount =
+            DominantHeadCount(a, dominantHead)
+            + DominantHeadCount(b, dominantHead)
+            + DominantHeadCount(c, dominantHead);
 
         if (dominantHeadCount >= 2 || strongInfluenceCount >= 2)
             return true;
 
         float averageInfluence = (influenceA + influenceB + influenceC) / 3f;
         return dominantHeadCount >= 1 && averageInfluence >= Constants.HeadAverageInfluenceThreshold;
+    }
+
+    private static float HeadInfluenceAt(int index, float[] headInfluence)
+    {
+        return index >= 0 && index < headInfluence.Length ? headInfluence[index] : 0f;
+    }
+
+    private static int StrongInfluenceCount(float influence)
+    {
+        return influence >= Constants.HeadStrongInfluenceThreshold ? 1 : 0;
+    }
+
+    private static int DominantHeadCount(int index, bool[] dominantHead)
+    {
+        return index >= 0 && index < dominantHead.Length && dominantHead[index] ? 1 : 0;
     }
 
     private static bool IsDominatedBy(BoneWeight bw, HashSet<int> set)
