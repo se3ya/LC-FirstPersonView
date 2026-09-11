@@ -151,25 +151,9 @@ internal static class FirstPersonBody
         return 0;
     }
 
-    // Vanilla never draws layer 23
     private static bool IsPlayerModelReplaced(PlayerControllerB player)
     {
         return player.thisPlayerModel != null && !player.thisPlayerModel.enabled;
-    }
-
-    public static void ApplyFirstPersonCameraLayer(LocalBodyState state, bool showBody)
-    {
-        Camera? camera = state.GameplayCamera;
-        if (camera == null)
-            return;
-
-        int bodyLayerBit = 1 << Constants.EnemiesNotRenderedLayer;
-        bool rendered = (camera.cullingMask & bodyLayerBit) != 0;
-
-        if (showBody && !rendered)
-            camera.cullingMask |= bodyLayerBit;
-        else if (!showBody && rendered)
-            camera.cullingMask &= ~bodyLayerBit;
     }
 
     public static void HideHead(LocalBodyState state, bool hideArms)

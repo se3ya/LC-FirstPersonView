@@ -108,7 +108,6 @@ internal static class LocalBodyViewController
         try
         {
             FirstPersonBody.ApplyBodyRendering(state, showBody, useVanillaArms);
-            FirstPersonBody.ApplyFirstPersonCameraLayer(state, showBody);
         }
         catch (Exception ex)
         {
