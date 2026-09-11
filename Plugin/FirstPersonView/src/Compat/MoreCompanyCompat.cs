@@ -14,8 +14,6 @@ namespace FirstPersonView.Compat;
 
 internal static class MoreCompanyCompat
 {
-    private const int TooManyEmotesHiddenLayer = 23;
-
     private sealed class TrackedCosmetic
     {
         public Transform Root = null!;
@@ -271,11 +269,13 @@ internal static class MoreCompanyCompat
                 lights = root.GetComponentsInChildren<Light>(true);
             }
 
+            int originalLayer = DrawnLayerFor(root, state.ModelRoot);
+
             int[] cullingMasks = new int[lights.Length];
             for (int i = 0; i < lights.Length; i++)
             {
                 if (lights[i] != null)
-                    cullingMasks[i] = lights[i].cullingMask;
+                    cullingMasks[i] = DrawnCullingMaskFor(lights[i].cullingMask, originalLayer);
             }
 
             Tracked.Add(new TrackedCosmetic
@@ -284,7 +284,7 @@ internal static class MoreCompanyCompat
                 Renderers = renderers,
                 Lights = lights,
                 LightCullingMasks = cullingMasks,
-                OriginalLayer = root.gameObject.layer,
+                OriginalLayer = originalLayer,
                 FirstPersonToggle = FirstPersonToggleFor(cosmetic.cosmeticType),
                 HiddenByFirstPersonArms = cosmetic.cosmeticType == CosmeticType.R_LOWER_ARM,
                 CosmeticId = cosmetic.cosmeticId ?? string.Empty,
@@ -404,21 +404,56 @@ internal static class MoreCompanyCompat
         Reset();
     }
 
+    private static int DrawnLayerFor(Transform cosmeticRoot, Transform? modelRoot)
+    {
+        int layer = cosmeticRoot.gameObject.layer;
+        if (layer != Constants.EnemiesNotRenderedLayer)
+            return layer;
+
+        return modelRoot != null && modelRoot.gameObject.layer != Constants.EnemiesNotRenderedLayer
+            ? modelRoot.gameObject.layer
+            : 0;
+    }
+
     private static void RestoreCosmeticLayer(TrackedCosmetic cosmetic)
     {
-        if (cosmetic.OriginalLayer == TooManyEmotesHiddenLayer)
-            return;
-        if (cosmetic.Root.gameObject.layer == cosmetic.OriginalLayer)
-            return;
+        if (cosmetic.Root.gameObject.layer != cosmetic.OriginalLayer)
+        {
+            SetLayerRecursively(cosmetic.Root, cosmetic.OriginalLayer);
+            RestoreLightCullingMasks(cosmetic);
+        }
 
-        SetLayerRecursively(cosmetic.Root, cosmetic.OriginalLayer);
+        MoveRenderersOffHiddenLayer(cosmetic);
+    }
 
+    private static void RestoreLightCullingMasks(TrackedCosmetic cosmetic)
+    {
         for (int i = 0; i < cosmetic.Lights.Length; i++)
         {
             Light light = cosmetic.Lights[i];
             if (light != null)
                 light.cullingMask = cosmetic.LightCullingMasks[i];
         }
+    }
+
+    private static void MoveRenderersOffHiddenLayer(TrackedCosmetic cosmetic)
+    {
+        Renderer[] renderers = cosmetic.Renderers;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null)
+                continue;
+
+            GameObject rendererObject = renderer.gameObject;
+            if (rendererObject.layer == Constants.EnemiesNotRenderedLayer)
+                rendererObject.layer = cosmetic.OriginalLayer;
+        }
+    }
+
+    private static int DrawnCullingMaskFor(int cullingMask, int drawnLayer)
+    {
+        return cullingMask == 1 << Constants.EnemiesNotRenderedLayer ? 1 << drawnLayer : cullingMask;
     }
 
     private static void SetLayerRecursively(Transform root, int layer)
