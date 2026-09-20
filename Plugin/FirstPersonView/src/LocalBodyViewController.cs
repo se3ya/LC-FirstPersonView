@@ -35,6 +35,7 @@ internal static class LocalBodyViewController
         HeldItemView.Reset();
         MoreCompanyCompat.Reset();
         CosmeticBodyView.Reset();
+        SwingTorsoSmoothing.Reset();
         MeshSurgery.ClearCaches();
 
         if (renderCallbacksHooked)
@@ -147,6 +148,24 @@ internal static class LocalBodyViewController
         catch (Exception ex)
         {
             LogStageError("Visor", ex);
+        }
+
+        try
+        {
+            SwingReturn.Apply(state, player);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Swing return", ex);
+        }
+
+        try
+        {
+            SwingTorsoSmoothing.Apply(state, player);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Swing torso", ex);
         }
 
         try
