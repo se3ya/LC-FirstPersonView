@@ -46,14 +46,6 @@ internal static class Constants
     public const float ArmSwapEngageDelay = 0.05f;   // qualifying movement before the FP arms engage
     public const float ArmSwapReleaseDelay = 0.25f;  // non qualifying before reverting to body arms
 
-    public const float NeckGuardCalmTau = 0.015f;        // follow tau when not swinging (responsive)
-    public const float NeckGuardSwingTau = 0.12f;        // follow tau during the swing (smooths the guarded follow)
-    public const float NeckGuardSwingTail = 0.6f;        // keep the guard active this long after the swing (s)
-    public const float NeckGuardReleaseRamp = 0.8f;     // ease tau swing -> calm over this long
-    public const float NeckGuardUpFollow = 1f;         // fraction of the up throw the eye follows during a swing
-    public const float NeckGuardDownFollow = 0f;       // fraction of a below rest dip the eye follows during a swing
-    public const float NeckGuardCrouchSettled = 0.9f;    // only freeze the rest anchor once crouch blend passes this
-    public const float NeckGuardCrouchFloor = 0.35f;     // min forward deviation a stand -> crouch swing floors the eye at
     public const float EyeAnchorDriftTau = 2f;           // recentre eye anchor over this long, while standing
     public const float EyeAnchorSettledLookBand = 0.05f;  // only recentre while the view is within this much of level, up or down
     public const float EyeAnchorDriftLimit = 0.06f;      // drift may never take more of eye travel than this
@@ -71,8 +63,13 @@ internal static class Constants
     public const float MaxFollowOffset = 0.5f;      // how far the follow can move the eye
     public const float EyeForwardFloor = 0f;     // eye may never go behind the base
 
-    // eye nudge while holding
-    public const float ShovelSwingBlendTime = 0.18f;          // ease the shovel swing nudge in/out
+    public const float SwingReturnBlendTime = 0.3f;
+    public const float SwingReturnHit = 0.7f;
+    public const float SwingReturnCollide = 0.3f;
+    public const float SwingTorsoTau = 0.07f;
+    public const float SwingTorsoReturnTau = 0.16f;
+    public const float SwingTorsoBlendTime = 0.25f;
+    public const float SwingTorsoTail = 0.45f;
 
     public const float RunningBlendTime = 0.18f;          // ease the running nudge in/out
 
@@ -90,7 +87,6 @@ internal static class Constants
     public const float LookDownForwardStart = 0.45f;      // begin pushing
     public const float LookDownForwardFull = 0.95f;        // reach the full push at this amount
 
-    public const float LookDownShovelSwingEyeOffsetForward = 0.12f;   // during a shovel type swing
     public const float LookDownRunningEyeOffsetForward = 0.12f;   // while running
     public const float LookDownWalkingEyeOffsetForward = 0.02f;   // while walking
     public const float LookDownJumpingEyeOffsetForward = 0.12f;   // while jumping

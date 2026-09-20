@@ -34,9 +34,6 @@ internal static class CameraRig
         blends.Crouch = Mathf.MoveTowards(
             blends.Crouch, player.isCrouching ? 1f : 0f, Time.deltaTime / Constants.CrouchBlendTime);
 
-        blends.ShovelSwing = Mathf.MoveTowards(
-            blends.ShovelSwing, Players.IsSwingingShovelLike(player) ? 1f : 0f, Time.deltaTime / Constants.ShovelSwingBlendTime);
-
         blends.Run = Mathf.MoveTowards(
             blends.Run, player.isSprinting ? 1f : 0f, Time.deltaTime / Constants.RunningBlendTime);
 
@@ -54,10 +51,9 @@ internal static class CameraRig
             ? Constants.LookDownCruiserEyeOffsetForward
             : Constants.LookDownEyeOffsetForward;
 
-        float statePush = Mathf.Max(blends.ShovelSwing * Constants.LookDownShovelSwingEyeOffsetForward,
-            Mathf.Max(blends.Run * Constants.LookDownRunningEyeOffsetForward,
-                Mathf.Max(blends.Walk * Constants.LookDownWalkingEyeOffsetForward,
-                    blends.Jump * Constants.LookDownJumpingEyeOffsetForward)));
+        float statePush = Mathf.Max(blends.Run * Constants.LookDownRunningEyeOffsetForward,
+            Mathf.Max(blends.Walk * Constants.LookDownWalkingEyeOffsetForward,
+                blends.Jump * Constants.LookDownJumpingEyeOffsetForward));
 
         float forwardOffset = lookDownRamp * (lookDownEyeOffsetForward + statePush);
 
@@ -93,7 +89,6 @@ internal static class CameraRig
     {
         state.CameraOffsetApplied = false;
         state.HasCameraTarget = false;
-        state.NeckGuard.Initialized = false;
     }
 
     public static void ApplyVehiclePush(LocalBodyState state)
@@ -229,7 +224,6 @@ internal static class CameraRig
 
         deviationLocal = StabilizeSprintBob(state, player, deviationLocal);
         deviationLocal = StabilizeLadder(state, player, deviationLocal);
-        deviationLocal = NeckGuardedFollow(state, player, deviationLocal);
 
         if (deviationLocal.sqrMagnitude > Constants.MaxFollowOffset * Constants.MaxFollowOffset)
             deviationLocal = deviationLocal.normalized * Constants.MaxFollowOffset;
@@ -291,8 +285,7 @@ internal static class CameraRig
             && state.Blends.Crouch <= 0f
             && !player.isClimbingLadder
             && !player.isJumping
-            && !player.isFallingFromJump
-            && !state.NeckGuard.Engaged;
+            && !player.isFallingFromJump;
     }
 
     private static float DampHeadBob(LocalBodyState state, PlayerControllerB player, float rawY)
@@ -386,109 +379,6 @@ internal static class CameraRig
         return Vector3.Lerp(deviationLocal, smooth.SmoothedLadderLocal, blends.Ladder);
     }
 
-    private static Vector3 NeckGuardedFollow(LocalBodyState state, PlayerControllerB player, Vector3 live)
-    {
-        NeckGuardState guard = state.NeckGuard;
-
-        if (!guard.Initialized)
-        {
-            guard.SwingRest = live;
-            guard.EyeDeviation = live;
-            guard.EyeVelocity = Vector3.zero;
-            guard.Tail = 0f;
-            guard.Release = 0f;
-            guard.Latched = false;
-            guard.WasSwinging = false;
-            guard.Engaged = false;
-            guard.FloorActive = false;
-            guard.CrouchRestZ = live.z;
-            guard.Initialized = true;
-            return live;
-        }
-
-        bool swinging = player.isCrouching && player.activatingItem;
-
-        if (swinging && !guard.WasSwinging)
-            guard.Latched = state.Blends.Crouch >= Constants.NeckGuardCrouchSettled;
-        guard.WasSwinging = swinging;
-
-        if (swinging)
-            guard.Tail = Constants.NeckGuardSwingTail;
-        else if (guard.Tail > 0f)
-            guard.Tail -= Time.deltaTime;
-
-        bool swingWindow = swinging || guard.Tail > 0f;
-        bool locked = guard.Latched && swingWindow;
-
-        if (player.isCrouching && !swingWindow)
-        {
-            guard.CrouchRestZ = live.z;
-        }
-
-        bool crouchGuard = swingWindow && !guard.Latched;
-        if (crouchGuard && !guard.FloorActive)
-        {
-            guard.FloorZ = Mathf.Max(guard.CrouchRestZ, Constants.NeckGuardCrouchFloor);
-            guard.CrouchRestY = live.y;
-            guard.FloorActive = true;
-        }
-        else if (!crouchGuard)
-            guard.FloorActive = false;
-
-        if (guard.Engaged && !locked && !crouchGuard)
-            guard.Release = Constants.NeckGuardReleaseRamp;
-        else if (guard.Release > 0f)
-            guard.Release -= Time.deltaTime;
-        guard.Engaged = locked || crouchGuard;
-
-        if (!locked)
-            guard.SwingRest = live;
-        Vector3 rest = guard.SwingRest;
-
-        float stance = player.isCrouching ? 1f : state.Blends.Crouch;
-
-        Vector3 target = live;
-        if (locked)
-        {
-            target.z = Mathf.Max(live.z, Mathf.Lerp(live.z, rest.z, stance));
-            if (swinging)
-                target.y = live.y >= rest.y
-                    ? rest.y + ((live.y - rest.y) * Constants.NeckGuardUpFollow)
-                    : rest.y + ((live.y - rest.y) * Constants.NeckGuardDownFollow);
-            else
-                target.y = Mathf.Lerp(live.y, Mathf.Min(live.y, rest.y), stance);
-        }
-        else if (guard.FloorActive)
-        {
-            target.z = Mathf.Max(live.z, Mathf.Lerp(live.z, guard.FloorZ, stance));
-            target.y = Mathf.Lerp(live.y, Mathf.Min(live.y, guard.CrouchRestY), stance);
-        }
-
-        bool swingSmoothing = locked || (swingWindow && player.isCrouching);
-        float tau;
-        if (swingSmoothing)
-            tau = Constants.NeckGuardSwingTau;
-        else if (guard.Release > 0f)
-            tau = Mathf.Lerp(
-                Constants.NeckGuardCalmTau, Constants.NeckGuardSwingTau,
-                guard.Release / Constants.NeckGuardReleaseRamp);
-        else
-            tau = Constants.NeckGuardCalmTau;
-
-        float tauY = swingWindow ? Constants.NeckGuardSwingTau : tau;
-
-        float vx = guard.EyeVelocity.x;
-        float vy = guard.EyeVelocity.y;
-        float vz = guard.EyeVelocity.z;
-        guard.EyeDeviation = new Vector3(
-            Mathf.SmoothDamp(guard.EyeDeviation.x, target.x, ref vx, tau),
-            Mathf.SmoothDamp(guard.EyeDeviation.y, target.y, ref vy, tauY),
-            Mathf.SmoothDamp(guard.EyeDeviation.z, target.z, ref vz, tau));
-        guard.EyeVelocity = new Vector3(vx, vy, vz);
-
-        return guard.EyeDeviation;
-    }
-
     private static float ClampTravelToWall(Vector3 origin, Vector3 dir, float distance, float radius)
     {
         StartOfRound? sor = StartOfRound.Instance;
@@ -516,7 +406,6 @@ internal static class CameraRig
     {
         state.Blends.Reset();
         state.BobSmooth.Reset();
-        state.NeckGuard.Reset();
         state.HasCameraTarget = false;
         state.VehiclePushApplied = false;
 

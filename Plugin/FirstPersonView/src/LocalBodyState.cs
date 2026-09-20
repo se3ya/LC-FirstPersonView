@@ -7,7 +7,6 @@ internal sealed class CameraBlends
 {
     public float Crouch;
     public float BobDamp;
-    public float ShovelSwing;
     public float Run;
     public float Walk;
     public float Jump;
@@ -19,7 +18,6 @@ internal sealed class CameraBlends
     {
         Crouch = 0f;
         BobDamp = 0f;
-        ShovelSwing = 0f;
         Run = 0f;
         Walk = 0f;
         Jump = 0f;
@@ -46,40 +44,6 @@ internal sealed class BobSmoothing
         LadderInitialized = false;
         SmoothedY = 0f;
         YInitialized = false;
-    }
-}
-
-internal sealed class NeckGuardState
-{
-    public Vector3 SwingRest;
-    public Vector3 EyeDeviation;
-    public Vector3 EyeVelocity;
-    public float Tail;
-    public float Release;
-    public float FloorZ;
-    public float CrouchRestZ;
-    public float CrouchRestY;
-    public bool FloorActive;
-    public bool Initialized;
-    public bool Latched;
-    public bool WasSwinging;
-    public bool Engaged;
-
-    public void Reset()
-    {
-        SwingRest = Vector3.zero;
-        EyeDeviation = Vector3.zero;
-        EyeVelocity = Vector3.zero;
-        Tail = 0f;
-        Release = 0f;
-        FloorZ = 0f;
-        CrouchRestZ = 0f;
-        CrouchRestY = 0f;
-        FloorActive = false;
-        Initialized = false;
-        Latched = false;
-        WasSwinging = false;
-        Engaged = false;
     }
 }
 
@@ -133,11 +97,11 @@ internal sealed class LocalBodyState
 
     public readonly CameraBlends Blends = new();
     public readonly BobSmoothing BobSmooth = new();
-    public readonly NeckGuardState NeckGuard = new();
     public readonly EyeAnchorState EyeAnchor = new();
 
     public bool MovementArmsActive;
     public float MovementArmsTimer;
+    public bool SwingReturnStarted;
     public Component? LethalPhonesPlayerPhone;
     public float LethalPhonesNextScan;
     public Component? MoreCompanyCosmeticApplication;
