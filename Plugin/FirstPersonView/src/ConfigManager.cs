@@ -23,6 +23,7 @@ public static class ConfigManager
     public static ConfigEntry<bool> DisableHeadBob = null!;
     public static ConfigEntry<bool> StickCameraToHeadInAnimations = null!;
     public static ConfigEntry<bool> HideBodyInCruiser = null!;
+    public static ConfigEntry<bool> SmoothSwingReturn = null!;
 
     public static ConfigEntry<bool> EnableMoreCompanyCompatibility = null!;
     public static ConfigEntry<bool> EnableTooManyEmotesCompatibility = null!;
@@ -217,6 +218,13 @@ public static class ConfigManager
             "StickCameraToHeadInAnimations",
             true,
             "Put the camera on your head during interact animations like the ship lever, item charging and chairs, the way vanilla does."
+        );
+
+        SmoothSwingReturn = config.Bind(
+            "4. Camera",
+            "SmoothSwingReturn",
+            true,
+            "Smooth body and arms while doing a shovel swing."
         );
 
         HideBodyInCruiser = config.Bind(
