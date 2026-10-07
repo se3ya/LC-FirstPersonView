@@ -5,14 +5,16 @@ using GameNetcodeStuff;
 using UnityEngine.Rendering;
 using UnityEngine;
 
-using FirstPersonView.Compat;
-
 namespace FirstPersonView;
 
 internal static class LocalBodyViewController
 {
     private static readonly Dictionary<int, LocalBodyState> States = new();
     private static bool renderCallbacksHooked;
+    private static InteractTrigger? seatTrigger;
+    private static bool seatVehicle;
+    private static bool hideWasOn;
+    private static bool hideCleared;
 
     internal static bool LocalBodyShown;
 
@@ -28,20 +30,31 @@ internal static class LocalBodyViewController
                 UnityEngine.Object.Destroy(state.ShadowProxy.gameObject);
         }
 
+        BodyBack.Restore();
         States.Clear();
         LocalBodyShown = false;
+        seatTrigger = null;
+        seatVehicle = false;
+        hideWasOn = false;
+        hideCleared = false;
 
         FirstPersonBody.Reset();
         HeldItemView.Reset();
         MoreCompanyCompat.Reset();
         CosmeticBodyView.Reset();
+        VisorShadow.Reset();
         SwingTorsoSmoothing.Reset();
+        ItemHands.Reset();
+        HeldItemCopy.Reset();
+        VisorGlass.Restore();
         MeshSurgery.ClearCaches();
 
         if (renderCallbacksHooked)
         {
+            RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
+            RenderPipelineManager.endContextRendering -= OnEndContextRendering;
             renderCallbacksHooked = false;
         }
     }
@@ -51,7 +64,8 @@ internal static class LocalBodyViewController
         if (!Players.IsLocal(player))
             return;
 
-        EnsureRenderCallbacksHooked();
+        HookRenderCallbacks();
+        hideCleared = hideWasOn && !FirstPersonBody.HideActive;
 
         LocalBodyState state = GetOrCreateState(player);
         if (NeedsRefresh(state, player))
@@ -68,17 +82,27 @@ internal static class LocalBodyViewController
         }
 
         bool alive = player.isPlayerControlled && !player.isPlayerDead;
-        bool hideForVehicle = alive && HideBodyForVehicle(player);
-        bool showBody = alive && !hideForVehicle;
+        bool hideForSeat = alive && (HideBodyForVehicle(player) || IsCouch(player));
+        bool spawning = alive && IsSpawning(state, player);
+        bool showBody = alive && !hideForSeat && !spawning;
         LocalBodyShown = showBody;
+        bool seated = IsSeated(player);
+
+        GrabbableObject? held = player.currentlyHeldObjectServer;
+        bool holding = Players.IsActivelyHolding(player);
+        GrabbableObject? inHand = holding ? held : null;
 
         bool holdingArms = false;
         try
         {
+            bool heldVanilla = inHand != null && ItemHands.UseVanillaArms(player, inHand);
             bool phoneActive = LethalPhonesCompat.IsLocalPhoneActive(state, player);
-            holdingArms = !player.inSpecialInteractAnimation
-                && (phoneActive
-                    || (Players.IsActivelyHolding(player) && ConfigManager.Hands.Value == HandsMode.Vanilla));
+            bool special = player.inSpecialInteractAnimation && !player.inShockingMinigame;
+            GrabbableObject? grabbing = player.isGrabbingObjectAnimation ? player.currentlyGrabbingObject : null;
+            bool grabbingVanilla = grabbing != null
+                && !grabbing.isHeld
+                && ItemHands.UseVanillaArms(player, grabbing);
+            holdingArms = !special && (phoneActive || grabbingVanilla || heldVanilla);
         }
         catch (Exception ex)
         {
@@ -89,7 +113,7 @@ internal static class LocalBodyViewController
         try
         {
             if (showBody
-                && !Players.IsActivelyHolding(player)
+                && !holding
                 && !player.inSpecialInteractAnimation)
             {
                 movementArms = MovementArmsGate.Update(state, player, Time.deltaTime);
@@ -104,7 +128,24 @@ internal static class LocalBodyViewController
             LogStageError("Movement arms", ex);
         }
 
-        bool useVanillaArms = showBody && (holdingArms || movementArms);
+        if (holdingArms)
+            state.VanillaArmsUntil = Time.time + Constants.ArmSwap.ReleaseDelay;
+        else if (holding)
+            state.VanillaArmsUntil = 0f;
+
+        if (seated)
+            state.SeatArmsUntil = Time.time + Constants.ArmSwap.ReleaseDelay;
+        else if (player.inSpecialInteractAnimation)
+            state.SeatArmsUntil = 0f;
+
+        bool releaseArms = !holding
+            && !player.inSpecialInteractAnimation
+            && Time.time < state.VanillaArmsUntil;
+
+        bool seatArms = seated
+            || (!player.inSpecialInteractAnimation && Time.time < state.SeatArmsUntil);
+
+        bool useVanillaArms = showBody && (holdingArms || releaseArms || movementArms || seatArms);
 
         try
         {
@@ -117,11 +158,20 @@ internal static class LocalBodyViewController
 
         try
         {
-            HeldItemView.ApplyHolder(state, player, showBody, useVanillaArms);
+            HeldItemView.ApplyHolder(state, player, inHand, showBody, useVanillaArms);
         }
         catch (Exception ex)
         {
             LogStageError("Held item", ex);
+        }
+
+        try
+        {
+            HeldItemCopy.Track(state, player, inHand, showBody, useVanillaArms);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Held item copy", ex);
         }
 
         try
@@ -152,6 +202,27 @@ internal static class LocalBodyViewController
 
         try
         {
+            if (showBody)
+                VisorGlass.Apply(state.LocalVisor);
+            else
+                VisorGlass.Restore();
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Visor glass", ex);
+        }
+
+        try
+        {
+            VisorShadow.Track(state.LocalVisor, state.GameplayCamera, showBody);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Visor shadow", ex);
+        }
+
+        try
+        {
             SwingReturn.Apply(state, player);
         }
         catch (Exception ex)
@@ -170,22 +241,48 @@ internal static class LocalBodyViewController
 
         try
         {
-            if (IsInCruiserImprovedSeat(player))
-                CameraRig.PrepareVehicleDetach(state);
-            else if (showBody && !player.inTerminalMenu)
-                CameraRig.ApplyOffset(state, player);
+            if (showBody)
+            {
+                if (!DeferEmoteCamera(state, player, useVanillaArms))
+                    CameraRig.ApplyOffset(state, player);
+            }
             else
+            {
                 CameraRig.RestoreOffset(state);
+            }
         }
         catch (Exception ex)
         {
             LogStageError("Camera offset", ex);
         }
 
+        SaveCamera(state);
+
         try
         {
-            CameraRig.ApplyArmAnchor(player, useVanillaArms);
-            CameraRig.RelaxSeatedLookClamp(player);
+            FirstPersonBody.UpdateCap();
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Neck cap", ex);
+        }
+
+        try
+        {
+            if (showBody)
+                VisorRig.Follow(state, player);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Visor follow", ex);
+        }
+
+        try
+        {
+            if (state.Emote.Frame != Time.frameCount)
+                CameraRig.ApplyArmAnchor(player, useVanillaArms, seatArms);
+
+            CameraRig.ClearStuckClamp(player);
         }
         catch (Exception ex)
         {
@@ -195,7 +292,7 @@ internal static class LocalBodyViewController
         try
         {
             MoreCompanyCompat.ApplyLocalCosmeticVisibility(
-                state, player, showBody, useVanillaArms, hideForVehicle);
+                state, player, showBody, useVanillaArms, hideForSeat || spawning);
         }
         catch (Exception ex)
         {
@@ -210,6 +307,136 @@ internal static class LocalBodyViewController
         {
             LogStageError("Cosmetic body", ex);
         }
+
+        try
+        {
+            if (state.Emote.Frame != Time.frameCount)
+                ApplyBack(state, player);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Body back", ex);
+        }
+
+        hideWasOn = FirstPersonBody.HideActive;
+    }
+
+    private static void ApplyBack(LocalBodyState state, PlayerControllerB player)
+    {
+        ShiftState shift = state.Shift;
+        bool active = LocalBodyShown
+            && FirstPersonBody.HideActive
+            && !hideCleared
+            && !player.inSpecialInteractAnimation
+            && !player.inVehicleAnimation
+            && shift.BackFrame == Time.frameCount;
+
+        if (active)
+            BodyBack.Apply(state.HipsBone, state.GameplayCamera, shift.BackDir, shift.BackAmount);
+        else
+            BodyBack.Restore();
+    }
+
+    public static void TickEmote(PlayerControllerB? player)
+    {
+        if (player == null || !States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
+            return;
+
+        EmoteState emote = state.Emote;
+        if (emote.Frame != Time.frameCount)
+            return;
+
+        try
+        {
+            CameraRig.ApplyOffset(state, player);
+            emote.Frame = -1;
+            SaveCamera(state);
+            VisorRig.Follow(state, player);
+
+            if (!TooManyEmotesCompat.IsFirstPersonEmoteActive())
+            {
+                Vector3 framed = player.localArmsMatchCamera
+                    ? emote.Container
+                    : player.cameraContainerTransform.position;
+                CameraRig.ApplyArmAnchor(player, emote.VanillaArms, framed);
+            }
+
+            ApplyBack(state, player);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Emote camera", ex);
+        }
+    }
+
+    public static void OnEmoteStopped(PlayerControllerB? player)
+    {
+        if (player == null || !LocalBodyShown || !TooManyEmotesCompat.IsEnabled
+            || !States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
+            return;
+
+        EmoteState emote = state.Emote;
+        int age = Time.frameCount - emote.TickFrame;
+        if (age < 0 || age > 1)
+            return;
+
+        try
+        {
+            Camera? camera = state.GameplayCamera;
+            if (camera != null)
+                camera.transform.localRotation = emote.CameraRotation;
+
+            if (age != 0)
+                return;
+
+            bool vanillaArms = FirstPersonBody.VanillaArmsShown;
+            FirstPersonBody.ApplyBodyRendering(state, true, vanillaArms);
+            MoreCompanyCompat.ApplyLocalCosmeticVisibility(state, player, true, vanillaArms, false);
+
+            GrabbableObject? held = Players.IsActivelyHolding(player) ? player.currentlyHeldObjectServer : null;
+            if (held != null)
+                HeldItemView.SetHolder(player, held, vanillaArms, true);
+
+            if (camera != null && emote.Frame != Time.frameCount && state.CameraOffsetApplied)
+                camera.transform.position = emote.CameraPosition;
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Emote stop", ex);
+        }
+    }
+
+    private static void SaveCamera(LocalBodyState state)
+    {
+        Camera? camera = state.GameplayCamera;
+        if (camera == null)
+            return;
+
+        EmoteState emote = state.Emote;
+        emote.TickFrame = Time.frameCount;
+        emote.CameraPosition = camera.transform.position;
+        emote.CameraRotation = camera.transform.localRotation;
+    }
+
+    private static bool DeferEmoteCamera(LocalBodyState state, PlayerControllerB player, bool useVanillaArms)
+    {
+        EmoteState emote = state.Emote;
+        if (emote.Frame == Time.frameCount - 1)
+            emote.Fallback = true;
+
+        bool active = TooManyEmotesCompat.IsFirstPersonEmoteActive();
+        if (!active)
+            emote.Fallback = false;
+
+        bool defer = active && TooManyEmotesCompat.IsHooked && !emote.Fallback;
+        emote.Frame = defer ? Time.frameCount : -1;
+        if (defer)
+        {
+            emote.VanillaArms = useVanillaArms;
+            CameraRig.SaveEmoteBase(state, player);
+        }
+
+        return defer;
     }
 
     private static readonly HashSet<string> _loggedStageErrors = new();
@@ -227,12 +454,58 @@ internal static class LocalBodyViewController
         if (!States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
             return;
 
-        bool detachForVehicle = IsInCruiserImprovedSeat(player);
+        CameraRig.AlignForInteractionRay(state);
+    }
 
-        if (detachForVehicle)
-            CameraRig.ApplyVehiclePush(state);
-        else
-            CameraRig.AlignForInteractionRay(state);
+    public static float GetRayBack(PlayerControllerB player)
+    {
+        if (!Players.IsLocal(player))
+            return 0f;
+        if (!States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
+            return 0f;
+
+        return CameraRig.GetRayBack(state);
+    }
+
+    public static void OnLookInput(PlayerControllerB player)
+    {
+        if (!Players.IsLocal(player) || !ConfigManager.EnableTooManyEmotesCompatibility.Value)
+            return;
+        if (!States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
+            return;
+
+        Transform? container = player.cameraContainerTransform;
+        if (container == null)
+            return;
+
+        EmoteState emote = state.Emote;
+        emote.Source = GetPinned(player, container.position);
+        emote.SourceFrame = Time.frameCount;
+    }
+
+    public static void OnLookApplied(PlayerControllerB player)
+    {
+        if (!Players.IsLocal(player) || !States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
+            return;
+
+        Camera? camera = state.GameplayCamera;
+        Transform? container = player.cameraContainerTransform;
+        if (camera == null || container == null || TooManyEmotesCompat.IsFirstPersonEmoteActive())
+            return;
+
+        state.LookPitch = CameraRig.GetPitch(container, camera.transform);
+        state.LookFrame = Time.frameCount;
+    }
+
+    private static Vector3 GetPinned(PlayerControllerB player, Vector3 position)
+    {
+        IngamePlayerSettings? settings = IngamePlayerSettings.Instance;
+        Transform? arms = player.playerModelArmsMetarig;
+        if (settings == null || arms == null || settings.settings.headBobbing || player.inSpecialInteractAnimation)
+            return position;
+
+        position.y = arms.position.y;
+        return position;
     }
 
     private static readonly List<SkinnedMeshRenderer> _riggedBodyScratch = new();
@@ -254,7 +527,7 @@ internal static class LocalBodyViewController
         if (Time.unscaledTime < state.CosmeticBodyNextScan)
             return;
 
-        state.CosmeticBodyNextScan = Time.unscaledTime + Constants.CosmeticBodyScanInterval;
+        state.CosmeticBodyNextScan = Time.unscaledTime + Constants.Body.CosmeticScanInterval;
 
         _candidateScratch.Clear();
 
@@ -273,25 +546,64 @@ internal static class LocalBodyViewController
         CosmeticBodyView.Rebuild(_candidateScratch);
     }
 
-    private static bool HideBodyForVehicle(PlayerControllerB player)
+    public static void OnSpawnAnimation(PlayerControllerB player)
     {
-        return ConfigManager.HideBodyInCruiser.Value && player.inVehicleAnimation;
+        if (Players.IsLocal(player))
+            GetOrCreateState(player).SpawnUntil = Time.time + Constants.Spawn.Timeout;
     }
 
-    private static bool IsInCruiserImprovedSeat(PlayerControllerB player)
+    private static bool IsSpawning(LocalBodyState state, PlayerControllerB player)
     {
-        if (!ConfigManager.EnableCruiserImprovedCompatibility.Value || !player.inVehicleAnimation)
+        if (Time.time >= state.SpawnUntil)
             return false;
 
-        if (HideBodyForVehicle(player))
-            return false;
+        if (player.inSpecialInteractAnimation)
+            return true;
+
+        state.SpawnUntil = 0f;
+        return false;
+    }
+
+    private static bool HideBodyForVehicle(PlayerControllerB player)
+    {
+        return ConfigManager.HideBodyInCruiser.Value
+            && player.inVehicleAnimation
+            && IsVehicleSeat(player.currentTriggerInAnimationWith);
+    }
+
+    private static string? GetSeatName(PlayerControllerB player)
+    {
+        if (!player.inSpecialInteractAnimation)
+            return null;
 
         InteractTrigger? trigger = player.currentTriggerInAnimationWith;
-        if (trigger == null || trigger.overridePlayerParent == null)
+        return trigger != null ? trigger.animationString : null;
+    }
+
+    private static bool IsCouch(PlayerControllerB player) => GetSeatName(player) == Constants.Seat.Couch;
+
+    private static bool IsSeated(PlayerControllerB player)
+    {
+        if (ConfigManager.Hands.Value == HandsMode.ThirdPerson)
             return false;
 
-        return trigger.overridePlayerParent.TryGetComponent(out VehicleController controller)
-            && controller.vehicleID == 0;
+        string? name = GetSeatName(player);
+        return name == Constants.Seat.Couch || name == Constants.Seat.Chair;
+    }
+
+    private static bool IsVehicleSeat(InteractTrigger? trigger)
+    {
+        if (trigger == null)
+            return false;
+
+        if (!ReferenceEquals(trigger, seatTrigger))
+        {
+            seatTrigger = trigger;
+            Transform? parent = trigger.overridePlayerParent;
+            seatVehicle = parent != null && parent.GetComponentInParent<VehicleController>() != null;
+        }
+
+        return seatVehicle;
     }
 
     private static LocalBodyState GetOrCreateState(PlayerControllerB player)
@@ -318,13 +630,14 @@ internal static class LocalBodyViewController
     {
         state.Player = player;
 
-        Transform? scavengerModel = player.transform.Find(Constants.ScavengerModelName);
+        Transform? scavengerModel = player.transform.Find(Constants.Rig.ScavengerModel);
         state.ModelRoot = scavengerModel != null ? scavengerModel : player.transform;
 
         state.HeadBone = FindHeadBone(state.ModelRoot, player);
 
-        state.LeftArmBone = FindBodyBone(player, Constants.LeftArmBoneName);
-        state.RightArmBone = FindBodyBone(player, Constants.RightArmBoneName);
+        state.LeftArmBone = FindBodyBone(player, Constants.Rig.LeftArmBone);
+        state.RightArmBone = FindBodyBone(player, Constants.Rig.RightArmBone);
+        state.HipsBone = FindBodyBone(player, Constants.Rig.HipsBone);
 
         state.BodyRenderer = player.thisPlayerModel;
         state.PlayerLodGroup = player.GetComponentInChildren<LODGroup>();
@@ -376,12 +689,12 @@ internal static class LocalBodyViewController
         {
             foreach (Transform bone in bodyMesh.bones)
             {
-                if (bone != null && NameContains(bone.name, Constants.HeadBoneName))
+                if (bone != null && NameContains(bone.name, Constants.Rig.HeadBone))
                     return bone;
             }
         }
 
-        return FindFirstByNameContains(modelRoot, Constants.HeadBoneName)
+        return FindFirstByNameContains(modelRoot, Constants.Rig.HeadBone)
             ?? FindFirstByNameContains(modelRoot, "head");
     }
 
@@ -421,14 +734,16 @@ internal static class LocalBodyViewController
     private static bool NameContains(string name, string token) =>
         name.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
 
-    private static void EnsureRenderCallbacksHooked()
+    private static void HookRenderCallbacks()
     {
         if (renderCallbacksHooked)
             return;
 
         renderCallbacksHooked = true;
+        RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
         RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+        RenderPipelineManager.endContextRendering += OnEndContextRendering;
     }
 
     private static readonly (Action<Camera> Apply, Action<Camera> Restore)[] CameraPasses =
@@ -437,17 +752,96 @@ internal static class LocalBodyViewController
         (HeldItemView.ApplyForCamera, HeldItemView.RestoreAfterCamera),
         (MoreCompanyCompat.ApplyForCamera, MoreCompanyCompat.RestoreAfterCamera),
         (CosmeticBodyView.ApplyForCamera, CosmeticBodyView.RestoreAfterCamera),
+        (VisorShadow.ApplyForCamera, VisorShadow.RestoreAfterCamera),
     };
+
+    private static void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+    {
+        try
+        {
+            PickupPose.Apply();
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Pickup", ex);
+        }
+
+        try
+        {
+            HeldItemCopy.Place();
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Held item copy", ex);
+        }
+
+        try
+        {
+            HeldItemCopy.BeginFrame();
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Held item copy", ex);
+        }
+    }
+
+    private static void OnEndContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+    {
+        try
+        {
+            BodyBack.RestoreAfter(cameras);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Body back", ex);
+        }
+
+        try
+        {
+            HeldItemCopy.EndFrame();
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Held item copy", ex);
+        }
+    }
 
     private static void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
     {
         foreach (var pass in CameraPasses)
-            pass.Apply(camera);
+        {
+            try
+            {
+                pass.Apply(camera);
+            }
+            catch (Exception ex)
+            {
+                LogStageError("Camera pass", ex);
+            }
+        }
+
+        try
+        {
+            HeldItemCopy.ApplyForCamera(camera);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Held item copy", ex);
+        }
     }
 
     private static void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
     {
         foreach (var pass in CameraPasses)
-            pass.Restore(camera);
+        {
+            try
+            {
+                pass.Restore(camera);
+            }
+            catch (Exception ex)
+            {
+                LogStageError("Camera pass", ex);
+            }
+        }
     }
 }

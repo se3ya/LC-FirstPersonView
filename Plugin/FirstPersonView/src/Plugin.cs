@@ -1,12 +1,10 @@
-﻿using System.IO;
+using System.IO;
 
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
-
-using FirstPersonView.Compat;
 
 namespace FirstPersonView;
 
@@ -33,8 +31,9 @@ public class Plugin : BaseUnityPlugin
 
         Log.LogInfo($"Initializing {MyPluginInfo.PLUGIN_NAME}");
 
-        ConfigFile config = ResolveConfigFile();
+        ConfigFile config = GetConfigFile();
         ConfigManager.Initialize(config, registerWithLethalConfig: config != Config);
+        ItemHands.Init();
         MoreCompanyCompat.Initialize();
         TooManyEmotesCompat.Initialize();
         LethalPhonesCompat.Initialize();
@@ -43,7 +42,7 @@ public class Plugin : BaseUnityPlugin
         Log.LogInfo($"{MyPluginInfo.PLUGIN_NAME} is loaded!");
     }
 
-    private ConfigFile ResolveConfigFile()
+    private ConfigFile GetConfigFile()
     {
         BepInPlugin metadata = MetadataHelper.GetMetadata(this);
 
