@@ -49,7 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Neck showing in **TooManyEmotes** first-person emotes when you look down, standing or walking
 - Camera and body flickering for a frame when a **TooManyEmotes** emote stops, like when you crouch out of it
 - Neck showing when you look down while entering the terminal, pulling the ship lever, dancing or right after the join animation
-- Flashlight hand disappearing on the couch and the electric chair
 - **MoreCompany** cosmetics staying in first person after turning its compatibility off in game
 - Held item dither resetting colors other mods set on the item
 - Gunkfish poop on helmet clipping in and out of the screen
@@ -58,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zap gun switching to body arms while zapping
 - Item you pick up with body arms floating in front of the camera for a moment
 - Camera going inside several objects
-- Collar showing when walking into a wall while looking down, players body is pulled back from the wall instead
+- Neck showing when walking into a wall while looking down, players body is pulled back from the wall instead
 - Interacting with things and picking up items aimed from the pushed camera instead of your eyes when looking down
 
 ## [1.5.2] - 2026-09-20
