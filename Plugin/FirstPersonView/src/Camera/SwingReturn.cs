@@ -6,6 +6,7 @@ namespace FirstPersonView;
 internal static class SwingReturn
 {
     private const int ArmsLayer = 4;
+    private const string GrabAnim = "HoldLung";
 
     private static readonly int HitShovelHash = Animator.StringToHash("HitShovel");
     private static readonly int HitShovelCollideHash = Animator.StringToHash("HitShovelCollide");
@@ -13,10 +14,13 @@ internal static class SwingReturn
 
     public static void Apply(LocalBodyState state, PlayerControllerB player)
     {
+        GrabbableObject? held = player.currentlyHeldObjectServer;
         if (!ConfigManager.SmoothSwingReturn.Value
             || !player.isPlayerControlled
             || player.isPlayerDead
-            || player.currentlyHeldObjectServer is not Shovel)
+            || held == null
+            || held.itemProperties == null
+            || held.itemProperties.grabAnim != GrabAnim)
         {
             state.SwingReturnStarted = false;
             return;
@@ -42,11 +46,11 @@ internal static class SwingReturn
         if (state.SwingReturnStarted)
             return;
 
-        float start = hit ? Constants.SwingReturnHit : Constants.SwingReturnCollide;
+        float start = hit ? Constants.Swing.ReturnHit : Constants.Swing.ReturnCollide;
         if (current.normalizedTime < start)
             return;
 
-        animator.CrossFadeInFixedTime(HoldHash, Constants.SwingReturnBlendTime, ArmsLayer);
+        animator.CrossFadeInFixedTime(HoldHash, Constants.Swing.ReturnBlendTime, ArmsLayer);
         state.SwingReturnStarted = true;
     }
 }
