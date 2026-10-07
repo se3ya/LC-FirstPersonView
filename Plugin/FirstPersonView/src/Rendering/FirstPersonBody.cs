@@ -8,10 +8,23 @@ namespace FirstPersonView;
 
 internal static class FirstPersonBody
 {
+    private static readonly CapGate Gate = new();
+
     private static SkinnedMeshRenderer? hideRenderer;
     private static Mesh? originalMesh;
     private static Mesh? headlessMesh;
     private static Mesh? headlessArmlessMesh;
+    private static Mesh? ownMesh;
+    private static Mesh? ownArmlessMesh;
+    private static LocalBodyState? gateState;
+    private static Mesh? gateSource;
+    private static SkinnedMeshRenderer? gateBody;
+    private static ClearancePoint[]? gatePoints;
+    private static bool gateFailed;
+    private static SkinnedMeshRenderer? capRenderer;
+    private static Material? capSuit;
+    private static bool capIntended;
+    private static float capHeight = float.NaN;
     private static bool hideArmsInFirstPerson;
     private static Camera? hideCamera;
     private static bool hideActive;
@@ -22,6 +35,7 @@ internal static class FirstPersonBody
     private static bool bodyLayerMoveLogged;
 
     public static bool HideActive => hideActive;
+    internal static bool VanillaArmsShown => fpArmsIntended;
 
     public static void ApplyBodyRendering(LocalBodyState state, bool showBody, bool useVanillaArms)
     {
@@ -81,11 +95,11 @@ internal static class FirstPersonBody
 
     private static void RestoreBodyLayer(LocalBodyState state, SkinnedMeshRenderer body)
     {
-        if (body.gameObject.layer != Constants.EnemiesNotRenderedLayer)
+        if (body.gameObject.layer != Constants.Layers.EnemiesNotRendered)
             return;
 
         Transform? root = state.ModelRoot;
-        int target = root != null && root.gameObject.layer != Constants.EnemiesNotRenderedLayer
+        int target = root != null && root.gameObject.layer != Constants.Layers.EnemiesNotRendered
             ? root.gameObject.layer
             : 0;
 
@@ -95,7 +109,7 @@ internal static class FirstPersonBody
             return;
 
         bodyLayerMoveLogged = true;
-        Plugin.Log.LogInfo($"Your body renderer was on layer {Constants.EnemiesNotRenderedLayer} which most cameras do not draw. Moved it to layer {target} so it shows on cameras.");
+        Plugin.Log.LogInfo($"Your body renderer was on layer {Constants.Layers.EnemiesNotRendered} which most cameras do not draw. Moved it to layer {target} so it shows on cameras.");
     }
 
     private static void WarnIfBodyRendererDisabled(SkinnedMeshRenderer body)
@@ -115,7 +129,7 @@ internal static class FirstPersonBody
             return;
         }
 
-        if (Time.unscaledTime - bodyDisabledSince < Constants.BodyDisabledWarnDelay)
+        if (Time.unscaledTime - bodyDisabledSince < Constants.Body.DisabledWarnDelay)
             return;
 
         bodyDisabledWarned = true;
@@ -186,12 +200,133 @@ internal static class FirstPersonBody
             ? MeshSurgery.GetOrCreateHeadlessArmlessMesh(original, body, state.HeadBone, state.LeftArmBone, state.RightArmBone)
             : null;
 
+        ownMesh = MeshSurgery.GetOwnMesh(original, body, state.HeadBone);
+        ownArmlessMesh = hideArms
+            ? MeshSurgery.GetOwnArmlessMesh(original, body, state.HeadBone, state.LeftArmBone, state.RightArmBone)
+            : null;
+
+        Mesh? capMesh = MeshSurgery.GetCapMesh(original);
+        if (capMesh != null && (ownMesh != null || ownArmlessMesh != null))
+            SetupCap(state, original, body, capMesh);
+
         hideRenderer = body;
         originalMesh = original;
         headlessMesh = headless;
-        hideCamera = state.GameplayCamera;
         hideActive = true;
         UpdateShadowProxy(state, active: true);
+    }
+
+    private static void SetupCap(LocalBodyState state, Mesh source, SkinnedMeshRenderer body, Mesh capMesh)
+    {
+        gateState = state;
+        if (ReferenceEquals(gateSource, source) && ReferenceEquals(gateBody, body))
+            return;
+
+        gateSource = source;
+        gateBody = body;
+        gatePoints = null;
+        Gate.Reset();
+        DestroyCap();
+
+        try
+        {
+            gatePoints = NeckCap.CreatePoints(source, body);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.LogWarning($"Failed to create the neck cap points on '{source.name}'. {ex.Message} The cap stays off.");
+            return;
+        }
+
+        if (gatePoints == null)
+        {
+            Plugin.Log.LogDebug($"Could not skin the neck cap points on '{source.name}', the cap stays off.");
+            return;
+        }
+
+        try
+        {
+            capRenderer = CreateCap(body, capMesh);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.LogWarning($"Failed to create the neck cap on '{source.name}'. {ex.Message} The hole stays open.");
+        }
+    }
+
+    private static SkinnedMeshRenderer CreateCap(SkinnedMeshRenderer body, Mesh capMesh)
+    {
+        GameObject capObject = new("FPVNeckCap");
+        try
+        {
+            Transform bodyTransform = body.transform;
+            capObject.transform.SetParent(bodyTransform.parent, worldPositionStays: false);
+            capObject.transform.localPosition = bodyTransform.localPosition;
+            capObject.transform.localRotation = bodyTransform.localRotation;
+            capObject.transform.localScale = bodyTransform.localScale;
+            capObject.layer = body.gameObject.layer;
+
+            SkinnedMeshRenderer cap = capObject.AddComponent<SkinnedMeshRenderer>();
+            cap.enabled = false;
+            cap.sharedMesh = capMesh;
+            cap.bones = body.bones;
+            cap.rootBone = body.rootBone;
+            cap.sharedMaterial = body.sharedMaterial;
+            cap.shadowCastingMode = ShadowCastingMode.Off;
+            cap.receiveShadows = body.receiveShadows;
+            cap.lightProbeUsage = body.lightProbeUsage;
+            cap.reflectionProbeUsage = body.reflectionProbeUsage;
+            cap.renderingLayerMask = body.renderingLayerMask;
+            cap.allowOcclusionWhenDynamic = body.allowOcclusionWhenDynamic;
+            cap.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+            cap.updateWhenOffscreen = true;
+            return cap;
+        }
+        catch (Exception)
+        {
+            UnityEngine.Object.Destroy(capObject);
+            throw;
+        }
+    }
+
+    private static void DestroyCap()
+    {
+        SkinnedMeshRenderer? cap = capRenderer;
+        capRenderer = null;
+        capSuit = null;
+        capIntended = false;
+        if (cap != null)
+            UnityEngine.Object.Destroy(cap.gameObject);
+    }
+
+    public static void UpdateCap()
+    {
+        SkinnedMeshRenderer? cap = capRenderer;
+        SkinnedMeshRenderer? body = hideRenderer;
+        if (cap == null || body == null)
+        {
+            capIntended = false;
+            capHeight = float.NaN;
+            SetCapVisible(false);
+            return;
+        }
+
+        bool active = hideActive && body.enabled && GetOwn() != null;
+        capHeight = active ? GetCapHeight() : float.NaN;
+        capIntended = active && Gate.Update(capHeight, IsStanding(), IsCrouching());
+
+        int layer = body.gameObject.layer;
+        if (cap.gameObject.layer != layer)
+            cap.gameObject.layer = layer;
+
+        Material suit = body.sharedMaterial;
+        if (capSuit != suit)
+        {
+            cap.sharedMaterial = suit;
+            capSuit = suit;
+        }
+
+        SetCapVisible(capIntended);
     }
 
     public static void RestoreHead(LocalBodyState state)
@@ -262,6 +397,7 @@ internal static class FirstPersonBody
     public static void ApplyForCamera(Camera camera)
     {
         SetArmsVisibleForCamera(fpArmsIntended && camera == hideCamera);
+        SetCapVisible(capIntended && hideActive && camera == hideCamera);
 
         SkinnedMeshRenderer? body = hideRenderer;
         if (!hideActive || body == null)
@@ -269,15 +405,71 @@ internal static class FirstPersonBody
 
         if (camera == hideCamera)
         {
-            Mesh? fpMesh = (hideArmsInFirstPerson && headlessArmlessMesh != null)
-                ? headlessArmlessMesh
-                : headlessMesh;
+            Mesh? fpMesh = GetHideMesh();
             if (fpMesh != null && body.sharedMesh != fpMesh)
                 body.sharedMesh = fpMesh;
         }
         else if (originalMesh != null && body.sharedMesh != originalMesh)
         {
             body.sharedMesh = originalMesh;
+        }
+    }
+
+    internal static Mesh? GetHideMesh()
+    {
+        if (!hideActive)
+            return null;
+
+        Mesh? own = GetOwn();
+        if (own != null)
+            return own;
+
+        return (hideArmsInFirstPerson && headlessArmlessMesh != null)
+            ? headlessArmlessMesh
+            : headlessMesh;
+    }
+
+    private static Mesh? GetOwn()
+    {
+        return hideArmsInFirstPerson && headlessArmlessMesh != null ? ownArmlessMesh : ownMesh;
+    }
+
+    private static bool IsStanding() => gateState != null && gateState.Shift.Pose.Key.IsStanding();
+
+    private static bool IsCrouching() => gateState != null && gateState.Player.isCrouching;
+
+    private static float GetCapHeight()
+    {
+        try
+        {
+            LocalBodyState? state = gateState;
+            ClearancePoint[]? points = gatePoints;
+            if (state == null || points == null || !state.CameraBaseCaptured)
+                return float.NaN;
+
+            Camera? camera = state.GameplayCamera;
+            Transform? head = state.HeadBone;
+            if (camera == null || head == null || head.parent == null)
+                return float.NaN;
+
+            Transform? parent = camera.transform.parent;
+            Vector3 local = state.HasCameraTarget ? state.Shift.ReferenceLocal : state.CameraBaseLocalPosition;
+            Vector3 vanilla = parent != null ? parent.TransformPoint(local) : local;
+            float scale = parent != null ? Mathf.Max(parent.lossyScale.y, 0.01f) : 1f;
+            Vector3 up = head.position - head.parent.position;
+            float height = NeckCap.GetHeight(
+                points[0].GetPosition(), points[1].GetPosition(), points[2].GetPosition(), up, vanilla);
+            return height / scale;
+        }
+        catch (Exception ex)
+        {
+            if (!gateFailed)
+            {
+                gateFailed = true;
+                Plugin.Log.LogWarning($"Failed to measure the neck cap height. {ex.Message} The cap stays off.");
+            }
+
+            return float.NaN;
         }
     }
 
@@ -290,10 +482,20 @@ internal static class FirstPersonBody
             fpArms.enabled = visible;
     }
 
+    private static void SetCapVisible(bool visible)
+    {
+        SkinnedMeshRenderer? cap = capRenderer;
+        if (cap != null && cap.enabled != visible)
+            cap.enabled = visible;
+    }
+
     public static void RestoreAfterCamera(Camera camera)
     {
         if (camera == hideCamera)
+        {
             SetArmsVisibleForCamera(fpArmsIntended);
+            SetCapVisible(capIntended && hideActive);
+        }
 
         SkinnedMeshRenderer? body = hideRenderer;
         if (body == null || originalMesh == null)
@@ -310,6 +512,16 @@ internal static class FirstPersonBody
         originalMesh = null;
         headlessMesh = null;
         headlessArmlessMesh = null;
+        ownMesh = null;
+        ownArmlessMesh = null;
+        gateState = null;
+        gateSource = null;
+        gateBody = null;
+        gatePoints = null;
+        gateFailed = false;
+        capHeight = float.NaN;
+        Gate.Reset();
+        DestroyCap();
         hideArmsInFirstPerson = false;
         hideCamera = null;
         fpArms = null;
