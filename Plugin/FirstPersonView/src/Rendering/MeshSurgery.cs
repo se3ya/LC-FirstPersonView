@@ -8,13 +8,21 @@ namespace FirstPersonView;
 
 internal static class MeshSurgery
 {
+    private const float MinCross = 1e-12f;
+
     private static readonly Dictionary<int, Mesh> HeadlessMeshCache = new();
     private static readonly Dictionary<int, Mesh> HeadlessArmlessMeshCache = new();
+    private static readonly Dictionary<int, Mesh> OwnMeshCache = new();
+    private static readonly Dictionary<int, Mesh> OwnArmlessMeshCache = new();
+    private static readonly Dictionary<int, Mesh> CapMeshCache = new();
     private static readonly Dictionary<int, Mesh?> ReadableCopies = new();
-    private static readonly HashSet<int> GeneratedMeshIds = new();   // meshes we built, so we don't capture one as a source
+    private static readonly HashSet<int> GeneratedMeshIds = new();
     private static readonly HashSet<int> LoggedUnreadableMeshes = new();
+    private static readonly HashSet<int> LoggedCapMeshes = new();
     private static readonly HashSet<int> FailedHeadlessMeshes = new();
     private static readonly HashSet<int> FailedHeadlessArmlessMeshes = new();
+    private static readonly HashSet<int> FailedOwnMeshes = new();
+    private static readonly HashSet<int> FailedOwnArmlessMeshes = new();
 
     public static bool IsGenerated(int meshInstanceId) => GeneratedMeshIds.Contains(meshInstanceId);
 
@@ -49,8 +57,8 @@ internal static class MeshSurgery
         if (neckSpan > 1e-6f)
             neckAxis /= neckSpan;
 
-        float columnStart = neckSpan * Constants.NeckColumnCullStart;
-        float columnRadius = neckSpan * Constants.NeckColumnCullRadius;
+        float columnStart = neckSpan * Constants.Culling.NeckColumnStart;
+        float columnRadius = neckSpan * Constants.Culling.NeckColumnRadius;
 
         BoneWeight[] weights = mesh.boneWeights;
         Vector3[] vertices = mesh.vertices;
@@ -66,7 +74,7 @@ internal static class MeshSurgery
 
             if (hasForward
                 && DominantBoneIndex(weights[i]) == neckIndex
-                && Vector3.Dot(offset, forward) < Constants.PipeCullBehindThreshold)
+                && Vector3.Dot(offset, forward) < Constants.Culling.PipeBehindThreshold)
             {
                 mask[i] = true;
                 marked++;
@@ -87,6 +95,46 @@ internal static class MeshSurgery
         }
 
         return marked > 0 ? mask : null;
+    }
+
+    private static bool[]? BuildColumnMask(Mesh mesh, SkinnedMeshRenderer skinned, Transform headBone)
+    {
+        Transform? neck = headBone.parent;
+        Transform[] bones = skinned.bones;
+        if (neck == null || mesh.bindposes == null || mesh.bindposes.Length == 0)
+            return null;
+
+        int bindposeCount = mesh.bindposes.Length;
+        int neckIndex = Array.IndexOf(bones, neck);
+        int headIndex = Array.IndexOf(bones, headBone);
+        if (neckIndex < 0 || headIndex < 0 || neckIndex >= bindposeCount || headIndex >= bindposeCount)
+            return null;
+
+        Vector3 neckPos = BoneBindPosition(mesh, neckIndex);
+        Vector3 neckAxis = BoneBindPosition(mesh, headIndex) - neckPos;
+        float neckSpan = neckAxis.magnitude;
+        if (neckSpan <= 1e-6f)
+            return null;
+
+        neckAxis /= neckSpan;
+        float columnStart = neckSpan * Constants.Culling.NeckColumnStart;
+        float columnRadius = neckSpan * Constants.Culling.NeckColumnRadius;
+
+        Vector3[] vertices = mesh.vertices;
+        bool[] mask = new bool[vertices.Length];
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 offset = vertices[i] - neckPos;
+            float along = Vector3.Dot(offset, neckAxis);
+            if (along < columnStart)
+                continue;
+            if ((offset - (neckAxis * along)).sqrMagnitude > columnRadius * columnRadius)
+                continue;
+
+            mask[i] = true;
+        }
+
+        return mask;
     }
 
     private static bool TryGetBodyForward(Mesh mesh, Transform[] bones, int headIndex, int neckIndex, out Vector3 forward)
@@ -142,6 +190,24 @@ internal static class MeshSurgery
                 UnityEngine.Object.Destroy(mesh);
         }
 
+        foreach (Mesh mesh in OwnMeshCache.Values)
+        {
+            if (mesh != null)
+                UnityEngine.Object.Destroy(mesh);
+        }
+
+        foreach (Mesh mesh in OwnArmlessMeshCache.Values)
+        {
+            if (mesh != null)
+                UnityEngine.Object.Destroy(mesh);
+        }
+
+        foreach (Mesh mesh in CapMeshCache.Values)
+        {
+            if (mesh != null)
+                UnityEngine.Object.Destroy(mesh);
+        }
+
         foreach (Mesh? mesh in ReadableCopies.Values)
         {
             if (mesh != null)
@@ -150,11 +216,17 @@ internal static class MeshSurgery
 
         HeadlessMeshCache.Clear();
         HeadlessArmlessMeshCache.Clear();
+        OwnMeshCache.Clear();
+        OwnArmlessMeshCache.Clear();
+        CapMeshCache.Clear();
         ReadableCopies.Clear();
         GeneratedMeshIds.Clear();
         LoggedUnreadableMeshes.Clear();
+        LoggedCapMeshes.Clear();
         FailedHeadlessMeshes.Clear();
         FailedHeadlessArmlessMeshes.Clear();
+        FailedOwnMeshes.Clear();
+        FailedOwnArmlessMeshes.Clear();
     }
 
     public static Mesh? GetOrCreateHeadlessMesh(
@@ -167,7 +239,7 @@ internal static class MeshSurgery
         if (FailedHeadlessMeshes.Contains(meshId))
             return null;
 
-        Mesh? readable = ResolveReadable(sourceMesh, meshId);
+        Mesh? readable = GetReadable(sourceMesh, meshId);
         if (readable == null)
             return null;
 
@@ -197,7 +269,7 @@ internal static class MeshSurgery
         if (FailedHeadlessArmlessMeshes.Contains(meshId))
             return null;
 
-        Mesh? readable = ResolveReadable(sourceMesh, meshId);
+        Mesh? readable = GetReadable(sourceMesh, meshId);
         if (readable == null)
             return null;
 
@@ -225,9 +297,85 @@ internal static class MeshSurgery
         return built;
     }
 
+    public static Mesh? GetOwnMesh(Mesh sourceMesh, SkinnedMeshRenderer skinned, Transform headBone)
+    {
+        int meshId = sourceMesh.GetInstanceID();
+        if (OwnMeshCache.TryGetValue(meshId, out Mesh cached) && cached != null)
+            return cached;
+
+        if (FailedOwnMeshes.Contains(meshId))
+            return null;
+
+        Mesh? readable = GetReadable(sourceMesh, meshId);
+        if (readable == null)
+            return null;
+
+        bool[]? pipeMask = BuildPipeMask(readable, skinned, headBone);
+        bool[]? columnMask = BuildColumnMask(readable, skinned, headBone);
+        HashSet<int> headBones = GetHeadBoneIndices(skinned, headBone);
+        Mesh? built = TryBuildFilteredMesh(readable, headBones, pipeMask, "_FPVHeadless", neckCap: true, columnMask);
+        if (built != null)
+        {
+            OwnMeshCache[meshId] = built;
+            GeneratedMeshIds.Add(built.GetInstanceID());
+        }
+        else
+        {
+            FailedOwnMeshes.Add(meshId);
+        }
+
+        return built;
+    }
+
+    public static Mesh? GetOwnArmlessMesh(
+        Mesh sourceMesh, SkinnedMeshRenderer skinned, Transform headBone, Transform? leftArm, Transform? rightArm)
+    {
+        int meshId = sourceMesh.GetInstanceID();
+        if (OwnArmlessMeshCache.TryGetValue(meshId, out Mesh cached) && cached != null)
+            return cached;
+
+        if (FailedOwnArmlessMeshes.Contains(meshId))
+            return null;
+
+        Mesh? readable = GetReadable(sourceMesh, meshId);
+        if (readable == null)
+            return null;
+
+        Mesh? built;
+        try
+        {
+            built = BuildHeadlessArmlessMesh(
+                readable, skinned, headBone, leftArm, rightArm, "_FPVHeadlessArmless", neckCap: true);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.LogWarning($"Failed to build '{sourceMesh.name}_FPVHeadlessArmless' with the neck cap. {ex.Message}");
+            FailedOwnArmlessMeshes.Add(meshId);
+            return null;
+        }
+
+        if (built != null)
+        {
+            OwnArmlessMeshCache[meshId] = built;
+            GeneratedMeshIds.Add(built.GetInstanceID());
+        }
+        else
+        {
+            FailedOwnArmlessMeshes.Add(meshId);
+        }
+
+        return built;
+    }
+
+    public static Mesh? GetCapMesh(Mesh sourceMesh)
+    {
+        Mesh? readable = GetReadable(sourceMesh);
+        return readable != null && CapMeshCache.TryGetValue(readable.GetInstanceID(), out Mesh cap) && cap != null ? cap : null;
+    }
+
     private static Mesh? BuildHeadlessArmlessMesh(
         Mesh sourceMesh, SkinnedMeshRenderer skinned, Transform headBone, Transform? leftArm, Transform? rightArm,
-        string nameSuffix)
+        string nameSuffix, bool neckCap = false)
     {
         BoneWeight[] boneWeights = sourceMesh.boneWeights;
         if (boneWeights == null || boneWeights.Length == 0)
@@ -254,18 +402,31 @@ internal static class MeshSurgery
 
         Vector3[] foldedVertices = (Vector3[])sourceMesh.vertices.Clone();
         BoneWeight[] foldedWeights = (BoneWeight[])boneWeights.Clone();
+        int[]? targets = neckCap ? NewTargets(vertexCount) : null;
 
-        FoldDominantVerticesToNearestSeam(sourceMesh, headDominant, foldedVertices, foldedWeights);
+        FoldDominantVerticesToNearestSeam(sourceMesh, headDominant, foldedVertices, foldedWeights, targets: targets);
 
         if (!FoldDominantVerticesToNearestSeam(sourceMesh, armDominant, foldedVertices, foldedWeights, headDominant))
-            return null;   // the arms don't border the torso here, so theres nothing to fold onto
+            return null;
 
-        Mesh filteredMesh = UnityEngine.Object.Instantiate(sourceMesh);
-        filteredMesh.name = sourceMesh.name + nameSuffix;
-        filteredMesh.vertices = foldedVertices;
-        filteredMesh.boneWeights = foldedWeights;
+        List<int>[] kept = FilterTriangles(sourceMesh, headInfluence, headDominant, armDominant);
+        if (neckCap)
+        {
+            if (!TryCap(sourceMesh, foldedVertices, foldedWeights, kept))
+                return null;
 
-        for (int subMesh = 0; subMesh < filteredMesh.subMeshCount; subMesh++)
+            bool[]? columnMask = BuildColumnMask(sourceMesh, skinned, headBone);
+            FixNeckFolds(kept, sourceMesh, boneWeights, headBones, columnMask, targets!, foldedVertices);
+        }
+
+        return CreateMesh(sourceMesh, nameSuffix, foldedVertices, foldedWeights, kept, neckCap);
+    }
+
+    private static List<int>[] FilterTriangles(
+        Mesh sourceMesh, float[] headInfluence, bool[] headDominant, bool[]? armDominant = null)
+    {
+        List<int>[] result = new List<int>[sourceMesh.subMeshCount];
+        for (int subMesh = 0; subMesh < result.Length; subMesh++)
         {
             int[] triangles = sourceMesh.GetTriangles(subMesh);
             List<int> kept = new(triangles.Length);
@@ -278,7 +439,7 @@ internal static class MeshSurgery
 
                 if (ShouldCullTriangle(a, b, c, headInfluence, headDominant))
                     continue;
-                if (armDominant[a] && armDominant[b] && armDominant[c])
+                if (armDominant != null && armDominant[a] && armDominant[b] && armDominant[c])
                     continue;
 
                 kept.Add(a);
@@ -286,12 +447,91 @@ internal static class MeshSurgery
                 kept.Add(c);
             }
 
-            filteredMesh.SetTriangles(kept, subMesh);
+            result[subMesh] = kept;
         }
 
-        filteredMesh.RecalculateBounds();
+        return result;
+    }
+
+    private static Mesh CreateMesh(
+        Mesh sourceMesh, string nameSuffix, Vector3[] vertices, BoneWeight[] weights, List<int>[] kept, bool capped)
+    {
+        Mesh filteredMesh = UnityEngine.Object.Instantiate(sourceMesh);
+        try
+        {
+            filteredMesh.name = sourceMesh.name + nameSuffix + (capped ? "Capped" : string.Empty);
+            filteredMesh.vertices = vertices;
+            filteredMesh.boneWeights = weights;
+
+            for (int subMesh = 0; subMesh < kept.Length; subMesh++)
+                filteredMesh.SetTriangles(kept[subMesh], subMesh);
+
+            filteredMesh.RecalculateBounds();
+        }
+        catch (Exception)
+        {
+            UnityEngine.Object.Destroy(filteredMesh);
+            throw;
+        }
 
         return filteredMesh;
+    }
+
+    private static bool TryCap(Mesh sourceMesh, Vector3[] vertices, BoneWeight[] weights, List<int>[] kept)
+    {
+        int meshId = sourceMesh.GetInstanceID();
+        try
+        {
+            if (NeckCap.TryApply(sourceMesh, vertices, weights, kept, out NeckCap.Shape? cap))
+            {
+                SaveCap(sourceMesh, cap);
+                return true;
+            }
+
+            if (sourceMesh.vertexCount == Constants.Clearance.BodyVertexCount && LoggedCapMeshes.Add(meshId))
+                Plugin.Log.LogWarning($"Could not close the neck hole on '{sourceMesh.name}', its rim does not match the vanilla suit.");
+        }
+        catch (Exception ex)
+        {
+            if (LoggedCapMeshes.Add(meshId))
+                Plugin.Log.LogWarning($"Failed to close the neck hole on '{sourceMesh.name}'. {ex.Message} The hole stays open.");
+        }
+
+        return false;
+    }
+
+    private static void SaveCap(Mesh sourceMesh, NeckCap.Shape cap)
+    {
+        int meshId = sourceMesh.GetInstanceID();
+        if (CapMeshCache.TryGetValue(meshId, out Mesh saved) && saved != null)
+            return;
+
+        CapMeshCache[meshId] = CreateCapMesh(sourceMesh, cap);
+        Plugin.Log.LogDebug($"Built the neck cap for '{sourceMesh.name}'.");
+    }
+
+    private static Mesh CreateCapMesh(Mesh sourceMesh, NeckCap.Shape cap)
+    {
+        Mesh capMesh = new();
+        try
+        {
+            capMesh.name = sourceMesh.name + "_FPVNeckCap";
+            capMesh.vertices = cap.Positions;
+            capMesh.normals = cap.Normals;
+            capMesh.tangents = cap.Tangents;
+            capMesh.uv = cap.Uvs;
+            capMesh.boneWeights = cap.Weights;
+            capMesh.bindposes = sourceMesh.bindposes;
+            capMesh.SetTriangles(cap.Indices, 0);
+            capMesh.RecalculateBounds();
+        }
+        catch (Exception)
+        {
+            UnityEngine.Object.Destroy(capMesh);
+            throw;
+        }
+
+        return capMesh;
     }
 
     private static List<int> CollectSeamVertices(Mesh mesh, bool[] dominantCut)
@@ -320,7 +560,7 @@ internal static class MeshSurgery
 
     private static bool FoldDominantVerticesToNearestSeam(
         Mesh sourceMesh, bool[] dominantCut, Vector3[] foldedVertices, BoneWeight[] foldedWeights,
-        bool[]? avoidTargets = null)
+        bool[]? avoidTargets = null, int[]? targets = null)
     {
         List<int> seam = CollectSeamVertices(sourceMesh, dominantCut);
         if (seam.Count == 0)
@@ -351,9 +591,92 @@ internal static class MeshSurgery
             int target = NearestVertex(lookupVertices[i], candidates, lookupVertices);
             foldedVertices[i] = lookupVertices[target];
             foldedWeights[i] = lookupWeights[target];
+            if (targets != null)
+                targets[i] = target;
         }
 
         return true;
+    }
+
+    private static int[] NewTargets(int count)
+    {
+        int[] targets = new int[count];
+        Array.Fill(targets, -1);
+        return targets;
+    }
+
+    private static void FixNeckFolds(
+        List<int>[] kept, Mesh source, BoneWeight[] weights, HashSet<int> headBones, bool[]? columnMask, int[] targets,
+        Vector3[] folded)
+    {
+        Vector3[] positions = source.vertices;
+        Vector3[] normals = source.normals;
+        Vector2[] uvs = source.uv;
+        float cutoff = Mathf.Cos(Constants.Culling.FoldAngle * Mathf.Deg2Rad);
+
+        bool[] neck = new bool[weights.Length];
+        int[] corners = new int[weights.Length];
+        for (int i = 0; i < neck.Length; i++)
+        {
+            neck[i] = targets[i] >= 0 && (IsDominatedBy(weights[i], headBones) || (columnMask != null && columnMask[i]));
+            corners[i] = -1;
+        }
+
+        int GetCorner(int vertex)
+        {
+            if (!neck[vertex])
+                return vertex;
+
+            if (corners[vertex] >= 0)
+                return corners[vertex];
+
+            int target = targets[vertex];
+            int best = vertex;
+            float limit = Constants.Culling.FoldUvRange * Constants.Culling.FoldUvRange;
+            for (int i = 0; i < positions.Length; i++)
+            {
+                if (i != target && !NeckCap.IsCopy(positions, weights, i, target))
+                    continue;
+
+                float range = uvs.Length == positions.Length ? (uvs[i] - uvs[vertex]).sqrMagnitude : 0f;
+                if (range >= limit || Vector3.Dot(normals[i].normalized, normals[vertex].normalized) < cutoff)
+                    continue;
+
+                best = i;
+                limit = range;
+            }
+
+            corners[vertex] = best;
+            return best;
+        }
+
+        for (int subMesh = 0; subMesh < kept.Length; subMesh++)
+        {
+            List<int> list = kept[subMesh];
+            List<int> result = new(list.Count);
+            for (int i = 0; i < list.Count; i += 3)
+            {
+                int a = list[i];
+                int b = list[i + 1];
+                int c = list[i + 2];
+                if (!neck[a] && !neck[b] && !neck[c])
+                {
+                    result.Add(a);
+                    result.Add(b);
+                    result.Add(c);
+                    continue;
+                }
+
+                if (Vector3.Cross(folded[b] - folded[a], folded[c] - folded[a]).sqrMagnitude <= MinCross)
+                    continue;
+
+                result.Add(GetCorner(a));
+                result.Add(GetCorner(b));
+                result.Add(GetCorner(c));
+            }
+
+            kept[subMesh] = result;
+        }
     }
 
     private static int NearestVertex(Vector3 point, List<int> candidates, Vector3[] vertices)
@@ -373,20 +696,25 @@ internal static class MeshSurgery
         return best;
     }
 
-    private static Mesh? TryBuildFilteredMesh(Mesh sourceMesh, HashSet<int> removalBoneIndices, bool[]? pipeMask, string nameSuffix)
+    private static Mesh? TryBuildFilteredMesh(
+        Mesh sourceMesh, HashSet<int> removalBoneIndices, bool[]? pipeMask, string nameSuffix, bool neckCap = false,
+        bool[]? columnMask = null)
     {
         try
         {
-            return BuildMeshWithoutBones(sourceMesh, removalBoneIndices, pipeMask, nameSuffix);
+            return BuildMeshWithoutBones(sourceMesh, removalBoneIndices, pipeMask, nameSuffix, neckCap, columnMask);
         }
         catch (Exception ex)
         {
-            Plugin.Log.LogWarning($"Failed to build '{sourceMesh.name}{nameSuffix}'. {ex.Message}");
+            string capText = neckCap ? " with the neck cap" : string.Empty;
+            Plugin.Log.LogWarning($"Failed to build '{sourceMesh.name}{nameSuffix}'{capText}. {ex.Message}");
             return null;
         }
     }
 
-    private static Mesh? BuildMeshWithoutBones(Mesh sourceMesh, HashSet<int> removalBoneIndices, bool[]? pipeMask, string nameSuffix)
+    private static Mesh? BuildMeshWithoutBones(
+        Mesh sourceMesh, HashSet<int> removalBoneIndices, bool[]? pipeMask, string nameSuffix, bool neckCap = false,
+        bool[]? columnMask = null)
     {
         BoneWeight[] boneWeights = sourceMesh.boneWeights;
         if (boneWeights == null || boneWeights.Length == 0)
@@ -406,38 +734,19 @@ internal static class MeshSurgery
 
         Vector3[] foldedVertices = (Vector3[])sourceMesh.vertices.Clone();
         BoneWeight[] foldedWeights = (BoneWeight[])boneWeights.Clone();
-        FoldDominantVerticesToNearestSeam(sourceMesh, dominant, foldedVertices, foldedWeights);
+        int[]? targets = neckCap ? NewTargets(boneWeights.Length) : null;
+        FoldDominantVerticesToNearestSeam(sourceMesh, dominant, foldedVertices, foldedWeights, targets: targets);
 
-        Mesh filteredMesh = UnityEngine.Object.Instantiate(sourceMesh);
-        filteredMesh.name = sourceMesh.name + nameSuffix;
-        filteredMesh.vertices = foldedVertices;
-        filteredMesh.boneWeights = foldedWeights;
-
-        for (int subMesh = 0; subMesh < filteredMesh.subMeshCount; subMesh++)
+        List<int>[] kept = FilterTriangles(sourceMesh, influence, dominant);
+        if (neckCap)
         {
-            int[] triangles = sourceMesh.GetTriangles(subMesh);
-            List<int> kept = new(triangles.Length);
+            if (!TryCap(sourceMesh, foldedVertices, foldedWeights, kept))
+                return null;
 
-            for (int i = 0; i < triangles.Length; i += 3)
-            {
-                int a = triangles[i];
-                int b = triangles[i + 1];
-                int c = triangles[i + 2];
-
-                if (ShouldCullTriangle(a, b, c, influence, dominant))
-                    continue;
-
-                kept.Add(a);
-                kept.Add(b);
-                kept.Add(c);
-            }
-
-            filteredMesh.SetTriangles(kept, subMesh);
+            FixNeckFolds(kept, sourceMesh, boneWeights, removalBoneIndices, columnMask, targets!, foldedVertices);
         }
 
-        filteredMesh.RecalculateBounds();
-
-        return filteredMesh;
+        return CreateMesh(sourceMesh, nameSuffix, foldedVertices, foldedWeights, kept, neckCap);
     }
 
     private static float InfluenceOf(BoneWeight bw, HashSet<int> set)
@@ -470,7 +779,7 @@ internal static class MeshSurgery
             return true;
 
         float averageInfluence = (influenceA + influenceB + influenceC) / 3f;
-        return dominantHeadCount >= 1 && averageInfluence >= Constants.HeadAverageInfluenceThreshold;
+        return dominantHeadCount >= 1 && averageInfluence >= Constants.Culling.HeadAverageInfluence;
     }
 
     private static float HeadInfluenceAt(int index, float[] headInfluence)
@@ -480,7 +789,7 @@ internal static class MeshSurgery
 
     private static int StrongInfluenceCount(float influence)
     {
-        return influence >= Constants.HeadStrongInfluenceThreshold ? 1 : 0;
+        return influence >= Constants.Culling.HeadStrongInfluence ? 1 : 0;
     }
 
     private static int DominantHeadCount(int index, bool[] dominantHead)
@@ -541,7 +850,7 @@ internal static class MeshSurgery
         if (string.IsNullOrWhiteSpace(value))
             return false;
 
-        foreach (string hint in Constants.HeadBoneNameHints)
+        foreach (string hint in Constants.Rig.HeadBoneHints)
         {
             if (value!.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
@@ -550,7 +859,9 @@ internal static class MeshSurgery
         return false;
     }
 
-    private static Mesh? ResolveReadable(Mesh sourceMesh, int meshId)
+    internal static Mesh? GetReadable(Mesh sourceMesh) => GetReadable(sourceMesh, sourceMesh.GetInstanceID());
+
+    private static Mesh? GetReadable(Mesh sourceMesh, int meshId)
     {
         if (sourceMesh.isReadable)
             return sourceMesh;
@@ -577,11 +888,6 @@ internal static class MeshSurgery
 
         ReadableCopies[meshId] = copy;
         return copy;
-    }
-
-    public static bool CanResolveReadable(Mesh sourceMesh)
-    {
-        return sourceMesh != null && ResolveReadable(sourceMesh, sourceMesh.GetInstanceID()) != null;
     }
 
     private static bool HasUsableSkinningData(Mesh candidate)
