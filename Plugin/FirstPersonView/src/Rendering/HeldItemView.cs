@@ -13,6 +13,7 @@ internal static class HeldItemView
 
     private static GrabbableObject? trackedItem;
     private static Renderer[] renderers = Array.Empty<Renderer>();
+    private static bool[] hadBlock = Array.Empty<bool>();
     private static MotionVectorGenerationMode[] originalMotionModes = Array.Empty<MotionVectorGenerationMode>();
     private static Material[] materials = Array.Empty<Material>();
     private static bool materialsResolved;
@@ -20,28 +21,33 @@ internal static class HeldItemView
     private static Vector3[] localVertices = Array.Empty<Vector3>();
     private static Camera? camera;
     private static bool hideActive;
+    private static bool vanillaArms;
+    private static bool fadeApplied;
     private static float fadeCurrent = 1f;      // low passed fade smoothed toward the per frame target
 
-    public static void ApplyHolder(LocalBodyState state, PlayerControllerB player, bool showBody, bool useVanillaArms)
+    public static void SetHolder(PlayerControllerB player, GrabbableObject held, bool useVanillaArms, bool showBody)
     {
-        GrabbableObject? held = player.currentlyHeldObjectServer;
-        bool actuallyHeld = Players.IsActivelyHolding(player);
+        Transform? holder = useVanillaArms || player.IsInspectingItem || !showBody
+            ? player.localItemHolder
+            : player.serverItemHolder;
+        if (holder != null && held.parentObject != holder)
+            held.parentObject = holder;
+    }
+
+    public static void ApplyHolder(
+        LocalBodyState state, PlayerControllerB player, GrabbableObject? held, bool showBody, bool useVanillaArms)
+    {
+        vanillaArms = useVanillaArms;
 
         bool inspecting = player.IsInspectingItem;
 
-        if (actuallyHeld && held != null)
-        {
-            Transform? holder = (useVanillaArms || inspecting || !showBody)
-                ? player.localItemHolder
-                : player.serverItemHolder;
-            if (holder != null && held.parentObject != holder)
-                held.parentObject = holder;
-        }
+        if (held != null)
+            SetHolder(player, held, useVanillaArms, showBody);
 
         bool wantFade = DitherEnabled();
 
-        GrabbableObject? tracked = actuallyHeld ? held : null;
-        if (tracked != trackedItem)
+        GrabbableObject? tracked = held;
+        if (!ReferenceEquals(tracked, trackedItem))
         {
             ResetEffect();
             RestoreMotionVectors();
@@ -49,11 +55,12 @@ internal static class HeldItemView
             renderers = tracked != null
                 ? tracked.GetComponentsInChildren<Renderer>()
                 : Array.Empty<Renderer>();
+            hadBlock = renderers.Length > 0 ? new bool[renderers.Length] : Array.Empty<bool>();
             SuppressMotionVectors();
             materials = wantFade ? MaterialDither.CollectInstancedMaterials(renderers) : Array.Empty<Material>();
             materialsResolved = wantFade;
-            boundsSource = ResolveBoundsSource(tracked, renderers);
-            localVertices = ResolveLocalVertices(boundsSource);
+            boundsSource = GetBoundsSource(tracked, renderers);
+            localVertices = GetLocalVertices(boundsSource);
         }
         else if (wantFade && !materialsResolved && renderers.Length > 0)
         {
@@ -73,7 +80,7 @@ internal static class HeldItemView
         if (!DitherEnabled())
             return;
 
-        float fade = renderingCamera == camera ? ComputeFade(renderingCamera) : 1f;
+        float fade = renderingCamera == camera ? GetFade(renderingCamera) : 1f;
         ApplyFade(fade);
     }
 
@@ -83,7 +90,7 @@ internal static class HeldItemView
             return false;
 
         ItemDitherMode modes = ConfigManager.ItemDither.Value;
-        return ConfigManager.Hands.Value == HandsMode.Vanilla
+        return vanillaArms
             ? (modes & ItemDitherMode.Vanilla) != 0
             : (modes & ItemDitherMode.ThirdPerson) != 0;
     }
@@ -94,7 +101,7 @@ internal static class HeldItemView
             ApplyFade(1f);
     }
 
-    private static float ComputeFade(Camera renderingCamera)
+    private static float GetFade(Camera renderingCamera)
     {
         Renderer? source = boundsSource;
         if (source == null)
@@ -146,8 +153,8 @@ internal static class HeldItemView
             target = Mathf.Min(MaterialDither.ProximityFade(Mathf.Sqrt(nearestSqr)), CoverageFade(coverage));
         }
 
-        target = Mathf.Max(Constants.HeldItemMinFade, target);
-        fadeCurrent = MaterialDither.Smooth(fadeCurrent, target, Constants.HeldItemFadeSmoothTime);
+        target = Mathf.Max(ConfigManager.MinVisibility.Value, target);
+        fadeCurrent = MaterialDither.Smooth(fadeCurrent, target, Constants.HeldItem.FadeSmoothTime);
         return fadeCurrent;
     }
 
@@ -155,7 +162,7 @@ internal static class HeldItemView
     private static float CoverageFade(float coverage)
     {
         return 1f - Mathf.Clamp01(Mathf.InverseLerp(
-            Constants.HeldItemCoverageFadeStart, Constants.HeldItemCoverageFadeFull, coverage));
+            Constants.HeldItem.CoverageFadeStart, Constants.HeldItem.CoverageFadeFull, coverage));
     }
 
     // distance from a world point to renderers oriented box
@@ -167,7 +174,7 @@ internal static class HeldItemView
         return Vector3.Distance(worldPoint, closestWorld);
     }
 
-    private static Vector3[] ResolveLocalVertices(Renderer? source)
+    private static Vector3[] GetLocalVertices(Renderer? source)
     {
         Mesh? mesh = source switch
         {
@@ -179,7 +186,7 @@ internal static class HeldItemView
         return mesh != null && mesh.isReadable ? mesh.vertices : Array.Empty<Vector3>();
     }
 
-    private static Renderer? ResolveBoundsSource(GrabbableObject? item, Renderer[] itemRenderers)
+    private static Renderer? GetBoundsSource(GrabbableObject? item, Renderer[] itemRenderers)
     {
         if (item == null)
             return null;
@@ -198,12 +205,31 @@ internal static class HeldItemView
 
     private static void ApplyFade(float fade)
     {
+        if (fade >= MaterialDither.Opaque)
+        {
+            ClearFade();
+            return;
+        }
+
+        if (!fadeApplied)
+            MaterialDither.RecordBlocks(renderers, hadBlock);
+
         MaterialDither.Set(renderers, materials, fade);
+        fadeApplied = true;
+    }
+
+    private static void ClearFade()
+    {
+        if (!fadeApplied)
+            return;
+
+        fadeApplied = false;
+        MaterialDither.Clear(renderers, materials, hadBlock);
     }
 
     private static void ResetEffect()
     {
-        MaterialDither.Set(renderers, materials, 1f);
+        ClearFade();
         fadeCurrent = 1f;
     }
 
@@ -241,11 +267,13 @@ internal static class HeldItemView
         RestoreMotionVectors();
         trackedItem = null;
         renderers = Array.Empty<Renderer>();
+        hadBlock = Array.Empty<bool>();
         materials = Array.Empty<Material>();
         materialsResolved = false;
         boundsSource = null;
         localVertices = Array.Empty<Vector3>();
         camera = null;
         hideActive = false;
+        vanillaArms = false;
     }
 }
