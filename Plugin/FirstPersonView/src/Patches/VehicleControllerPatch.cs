@@ -2,12 +2,12 @@ using GameNetcodeStuff;
 using HarmonyLib;
 using UnityEngine;
 
-namespace FirstPersonView.Compat;
+namespace FirstPersonView;
 
 // keeps cruiser ignition key in the first-person bodys hands instead of the camera anchored arms
 
 [HarmonyPatch(typeof(VehicleController))]
-public static class VehicleCompat
+public static class VehicleControllerPatch
 {
     [HarmonyPatch(nameof(VehicleController.Update))]
     [HarmonyPostfix]
@@ -36,7 +36,7 @@ public static class VehicleCompat
 
         // this could absolutely be improved, to fix numerous issues with the vanilla key, but i'm not touching this (for now)
         Transform key = __instance.keyObject.transform;
-        key.rotation = hand.rotation * Quaternion.Euler(Constants.CruiserKeyRotationOffset);
-        key.position = hand.position + (hand.rotation * Constants.CruiserKeyPositionOffset);
+        key.rotation = hand.rotation * Quaternion.Euler(Constants.Cruiser.KeyRotationOffset);
+        key.position = hand.position + (hand.rotation * Constants.Cruiser.KeyPositionOffset);
     }
 }
