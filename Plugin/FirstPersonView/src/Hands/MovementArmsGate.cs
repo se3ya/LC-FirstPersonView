@@ -23,7 +23,7 @@ internal static class MovementArmsGate
         else
         {
             state.MovementArmsTimer += deltaTime;
-            float threshold = qualifies ? Constants.ArmSwapEngageDelay : Constants.ArmSwapReleaseDelay;
+            float threshold = qualifies ? Constants.ArmSwap.EngageDelay : Constants.ArmSwap.ReleaseDelay;
             if (state.MovementArmsTimer >= threshold)
             {
                 state.MovementArmsActive = qualifies;
