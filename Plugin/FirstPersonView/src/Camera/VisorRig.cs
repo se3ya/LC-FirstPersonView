@@ -1,3 +1,4 @@
+using GameNetcodeStuff;
 using UnityEngine;
 
 namespace FirstPersonView;
@@ -25,6 +26,16 @@ internal static class VisorRig
 
         visor.SetParent(camera.transform, worldPositionStays: true);
         state.VisorReparented = true;
+    }
+
+    public static void Follow(LocalBodyState state, PlayerControllerB player)
+    {
+        Transform? visor = state.LocalVisor;
+        Transform? target = player.localVisorTargetPoint;
+        if (state.VisorReparented || visor == null || target == null)
+            return;
+
+        visor.position = target.position;
     }
 
     public static void Restore(LocalBodyState state)
