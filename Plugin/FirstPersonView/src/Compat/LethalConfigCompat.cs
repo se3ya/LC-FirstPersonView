@@ -6,7 +6,7 @@ using BepInEx.Configuration;
 using LethalConfig;
 using LethalConfig.ConfigItems;
 
-namespace FirstPersonView.Compat;
+namespace FirstPersonView;
 
 internal static class LethalConfigCompat
 {

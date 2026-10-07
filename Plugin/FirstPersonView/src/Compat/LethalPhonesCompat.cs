@@ -4,7 +4,7 @@ using System;
 using GameNetcodeStuff;
 using UnityEngine;
 
-namespace FirstPersonView.Compat;
+namespace FirstPersonView;
 
 internal static class LethalPhonesCompat
 {
@@ -23,7 +23,7 @@ internal static class LethalPhonesCompat
 
         _initialized = true;
 
-        _isInstalled = TryResolveTypes();
+        _isInstalled = TryFindTypes();
 
         if (_isInstalled)
             Plugin.Log.LogInfo("LethalPhones detected.");
@@ -40,7 +40,7 @@ internal static class LethalPhonesCompat
             if (Time.unscaledTime < state.LethalPhonesNextScan)
                 return false;
 
-            state.LethalPhonesNextScan = Time.unscaledTime + Constants.LethalPhonesScanInterval;
+            state.LethalPhonesNextScan = Time.unscaledTime + Constants.Compat.LethalPhonesScanInterval;
 
             Transform? phone = player.transform.Find(PhoneChildName);
             if (phone == null)
@@ -54,7 +54,7 @@ internal static class LethalPhonesCompat
         return _toggledField.GetValue(state.LethalPhonesPlayerPhone) is true;
     }
 
-    private static bool TryResolveTypes()
+    private static bool TryFindTypes()
     {
         Assembly? assembly = Reflection.FindAssembly("LethalPhones");
         if (assembly == null)

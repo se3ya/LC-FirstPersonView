@@ -10,7 +10,7 @@ using UnityEngine;
 
 using MoreCompany.Cosmetics;
 
-namespace FirstPersonView.Compat;
+namespace FirstPersonView;
 
 internal static class MoreCompanyCompat
 {
@@ -39,6 +39,7 @@ internal static class MoreCompanyCompat
 
     private static readonly List<TrackedCosmetic> Tracked = new();
     private static readonly Dictionary<int, SpawnedParts> SpawnedAtApply = new();
+    private static readonly List<int> DeadParts = new();
     private static readonly HashSet<string> HiddenIds = new(StringComparer.OrdinalIgnoreCase);
     private static string _hiddenIdsSource = string.Empty;
     private static int _trackedApplicationId;
@@ -141,10 +142,15 @@ internal static class MoreCompanyCompat
         LocalBodyState state, PlayerControllerB player, bool localBodyVisible, bool firstPersonArmsActive,
         bool hiddenWithBody)
     {
-        if (!_isInstalled || !ConfigManager.EnableMoreCompanyCompatibility.Value
-            || (!localBodyVisible && !hiddenWithBody))
+        if (!_isInstalled || !ConfigManager.EnableMoreCompanyCompatibility.Value)
         {
-            StopTracking();
+            StopTracking(deactivate: true);
+            return;
+        }
+
+        if (!localBodyVisible && !hiddenWithBody)
+        {
+            StopTracking(deactivate: false);
             return;
         }
 
@@ -154,7 +160,7 @@ internal static class MoreCompanyCompat
 
         if (!RefreshTracked(state, player))
         {
-            StopTracking();
+            StopTracking(deactivate: false);
             return;
         }
 
@@ -227,7 +233,7 @@ internal static class MoreCompanyCompat
         CosmeticApplication? cosmeticApplication = state.MoreCompanyCosmeticApplication as CosmeticApplication;
         if (cosmeticApplication == null)
         {
-            Transform? metarig = player.transform.Find(Constants.ScavengerModelName)?.Find(Constants.MetarigName);
+            Transform? metarig = player.transform.Find(Constants.Rig.ScavengerModel)?.Find(Constants.Rig.Metarig);
             if (metarig == null)
                 return false;
 
@@ -299,14 +305,14 @@ internal static class MoreCompanyCompat
         if (SpawnedAtApply.Count == 0)
             return;
 
-        List<int> dead = new();
+        DeadParts.Clear();
         foreach (KeyValuePair<int, SpawnedParts> entry in SpawnedAtApply)
         {
             if (entry.Value.Root == null)
-                dead.Add(entry.Key);
+                DeadParts.Add(entry.Key);
         }
 
-        foreach (int key in dead)
+        foreach (int key in DeadParts)
             SpawnedAtApply.Remove(key);
     }
 
@@ -387,8 +393,10 @@ internal static class MoreCompanyCompat
         }
     }
 
-    private static void StopTracking()
+    private static void StopTracking(bool deactivate)
     {
+        bool active = !deactivate;
+
         foreach (TrackedCosmetic cosmetic in Tracked)
         {
             if (cosmetic.Root == null)
@@ -397,8 +405,8 @@ internal static class MoreCompanyCompat
             SetRenderersEnabled(cosmetic, true);
 
             GameObject cosmeticObject = cosmetic.Root.gameObject;
-            if (!cosmeticObject.activeSelf)
-                cosmeticObject.SetActive(true);
+            if (cosmeticObject.activeSelf != active)
+                cosmeticObject.SetActive(active);
         }
 
         Reset();
@@ -407,10 +415,10 @@ internal static class MoreCompanyCompat
     private static int DrawnLayerFor(Transform cosmeticRoot, Transform? modelRoot)
     {
         int layer = cosmeticRoot.gameObject.layer;
-        if (layer != Constants.EnemiesNotRenderedLayer)
+        if (layer != Constants.Layers.EnemiesNotRendered)
             return layer;
 
-        return modelRoot != null && modelRoot.gameObject.layer != Constants.EnemiesNotRenderedLayer
+        return modelRoot != null && modelRoot.gameObject.layer != Constants.Layers.EnemiesNotRendered
             ? modelRoot.gameObject.layer
             : 0;
     }
@@ -446,14 +454,14 @@ internal static class MoreCompanyCompat
                 continue;
 
             GameObject rendererObject = renderer.gameObject;
-            if (rendererObject.layer == Constants.EnemiesNotRenderedLayer)
+            if (rendererObject.layer == Constants.Layers.EnemiesNotRendered)
                 rendererObject.layer = cosmetic.OriginalLayer;
         }
     }
 
     private static int DrawnCullingMaskFor(int cullingMask, int drawnLayer)
     {
-        return cullingMask == 1 << Constants.EnemiesNotRenderedLayer ? 1 << drawnLayer : cullingMask;
+        return cullingMask == 1 << Constants.Layers.EnemiesNotRendered ? 1 << drawnLayer : cullingMask;
     }
 
     private static void SetLayerRecursively(Transform root, int layer)
