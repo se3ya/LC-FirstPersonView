@@ -18,10 +18,12 @@ internal static class Constants
     internal static class Layers
     {
         public const int HelmetVisor = 7;
+        public const int Room = 8;
         public const int RadarDot = 14;
         public const int ScanNode = 22;
         public const int EnemiesNotRendered = 23;
         public const int PlaceableShipObjects = 26;
+        public const int Vehicle = 30;
     }
 
     internal static class Culling
@@ -57,6 +59,7 @@ internal static class Constants
     {
         public const string Couch = "SA_SitOnCouch";
         public const string Chair = "SA_SitOnElectricChair";
+        public const float MaxLookDown = 80f;
     }
 
     internal static class Camera
@@ -129,9 +132,6 @@ internal static class Constants
         public const float DriftTau = 2f;
         public const float SettledLookBand = 0.05f;
         public const float DriftLimit = 0.06f;
-        public const float DriftWarnThreshold = 0.06f;
-        public const float DriftWarnDelay = 5f;
-        public const float ReportDistance = 0.03f;
         public const float SettleTime = 0.6f;
     }
 
@@ -149,8 +149,7 @@ internal static class Constants
 
     internal static class HeldItem
     {
-        public const float CoverageFadeStart = 0.45f;
-        public const float CoverageFadeFull = 0.6f;
+        public const float CoverageFadeRange = 0.15f;
         public const float FadeSmoothTime = 0.08f;
     }
 

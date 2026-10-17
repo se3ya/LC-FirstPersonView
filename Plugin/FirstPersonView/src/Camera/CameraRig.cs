@@ -1,5 +1,4 @@
 using GameNetcodeStuff;
-using UnityEngine.Animations.Rigging;
 using UnityEngine;
 
 namespace FirstPersonView;
@@ -12,7 +11,6 @@ internal static class CameraRig
 
     private static readonly RaycastHit[] WallHits = new RaycastHit[32];
 
-    private static bool leanWarned;
     private static int wallMask;
     private static int wallLayer = -1;
 
@@ -290,20 +288,7 @@ internal static class CameraRig
             Vector3.Dot(delta, container.right), Vector3.Dot(delta, container.up), Vector3.Dot(delta, container.forward));
     }
 
-    private static float GetLean(PlayerControllerB player)
-    {
-        MultiRotationConstraint? rig = player.cameraLookRig1;
-        if (rig != null)
-            return rig.weight;
-
-        if (!leanWarned)
-        {
-            leanWarned = true;
-            Plugin.Log.LogWarning($"Could not read the cameraLookRig1 weight. Using {PoseSamples.LeanWeight}.");
-        }
-
-        return PoseSamples.LeanWeight;
-    }
+    private static float GetLean(PlayerControllerB player) => player.cameraLookRig1.weight;
 
     private static float GetHeading(PlayerControllerB player)
     {
@@ -534,6 +519,41 @@ internal static class CameraRig
         }
     }
 
+    public static void UpdateSeatClamp(LocalBodyState state, PlayerControllerB player)
+    {
+        InteractTrigger? seat = player.currentTriggerInAnimationWith;
+        if (!player.inVehicleAnimation || !player.clampLooking || seat == null || !seat.clampLooking)
+            return;
+
+        float limit = seat.minVerticalClamp;
+        float push = GetRayBack(state);
+        if (push > 0f && state.GameplayCamera != null)
+            limit = Mathf.Max(limit, GetSeatReach(player, state.GameplayCamera.transform, limit, push));
+
+        player.minVerticalClamp = Mathf.Max(limit, Mathf.Min(player.minVerticalClamp, player.cameraUp));
+    }
+
+    private static float GetSeatReach(PlayerControllerB player, Transform camTransform, float limit, float push)
+    {
+        Vector3 up = player.cameraContainerTransform.up;
+        Vector3 flat = Vector3.ProjectOnPlane(camTransform.forward, up);
+        if (flat.sqrMagnitude < 1e-5f)
+            return limit;
+
+        flat.Normalize();
+        float angle = limit * Mathf.Deg2Rad;
+        Vector3 eye = camTransform.position - (flat * push);
+        Vector3 dir = (flat * Mathf.Cos(angle)) - (up * Mathf.Sin(angle));
+        int mask = player.interactableObjectsMask | StartOfRound.Instance.collidersAndRoomMaskAndDefault;
+        float reach = Physics.Raycast(eye, dir, out RaycastHit hit, player.grabDistance, mask, QueryTriggerInteraction.Collide)
+            ? hit.distance
+            : player.grabDistance;
+
+        Vector3 aim = eye + (dir * reach) - camTransform.position;
+        float pitch = Mathf.Atan2(-Vector3.Dot(aim, up), Vector3.Dot(aim, flat)) * Mathf.Rad2Deg;
+        return Mathf.Min(pitch, Constants.Seat.MaxLookDown);
+    }
+
     public static void AlignForInteractionRay(LocalBodyState state)
     {
         if (!state.HasCameraTarget || state.GameplayCamera == null)
@@ -555,6 +575,19 @@ internal static class CameraRig
     }
 
     public static float GetRayBack(LocalBodyState state) => state.HasCameraTarget ? state.Shift.Travel : 0f;
+
+    public static bool TryGetEye(LocalBodyState state, out Vector3 eye)
+    {
+        eye = Vector3.zero;
+        Camera? camera = state.GameplayCamera;
+        if (!state.HasCameraTarget || camera == null)
+            return false;
+
+        Transform? parent = camera.transform.parent;
+        Vector3 local = state.Shift.ReferenceLocal;
+        eye = parent != null ? parent.TransformPoint(local) : local;
+        return true;
+    }
 
     public static void ApplyArmAnchor(PlayerControllerB player, bool useVanillaArms, bool seat)
     {
@@ -617,8 +650,6 @@ internal static class CameraRig
                 anchor.Drift = anchor.Drift.normalized * limit;
         }
 
-        WarnOnPersistentDrift(anchor);
-
         Vector3 deviation = rawDeviation - anchor.Drift;
         if (deviation.sqrMagnitude > Constants.Camera.MaxFollowOffset * Constants.Camera.MaxFollowOffset)
             deviation = deviation.normalized * Constants.Camera.MaxFollowOffset;
@@ -629,45 +660,11 @@ internal static class CameraRig
     private static void CaptureEyeAnchor(
         EyeAnchorState anchor, Transform bone, Vector3 baseWorld, Quaternion yawRotation, bool steady)
     {
-        if (anchor.Captured)
-        {
-            float distance = Vector3.Distance(bone.TransformPoint(anchor.BoneLocal), baseWorld);
-            if (distance > Constants.EyeAnchor.ReportDistance)
-                Plugin.Log.LogInfo($"Eye position was {distance * 100f:F1} cm off after spawning, measured it again.");
-        }
-
         anchor.Local = Quaternion.Inverse(yawRotation) * (baseWorld - bone.position);
         anchor.BoneLocal = bone.InverseTransformPoint(baseWorld);
         anchor.Drift = Vector3.zero;
         anchor.Captured = true;
         anchor.Verified = steady;
-    }
-
-    private static void WarnOnPersistentDrift(EyeAnchorState anchor)
-    {
-        if (anchor.DriftWarned)
-            return;
-
-        float threshold = Constants.EyeAnchor.DriftWarnThreshold;
-        if (anchor.Drift.sqrMagnitude < threshold * threshold)
-        {
-            anchor.DriftHighSince = 0f;
-            return;
-        }
-
-        if (anchor.DriftHighSince <= 0f)
-        {
-            anchor.DriftHighSince = Time.unscaledTime;
-            return;
-        }
-
-        if (Time.unscaledTime - anchor.DriftHighSince < Constants.EyeAnchor.DriftWarnDelay)
-            return;
-
-        anchor.DriftWarned = true;
-        Plugin.Log.LogWarning(
-            $"Eye anchor drift held at {anchor.Drift.magnitude:F3}m for over {Constants.EyeAnchor.DriftWarnDelay:F0}s. "
-            + "The head bone rest pose does not match the captured anchor, the forward eye offset may be reduced.");
     }
 
     private static bool IsEyeAnchorSettled(PlayerControllerB player, float lookDown)
@@ -784,7 +781,6 @@ internal static class CameraRig
 
         wallMask = mask;
         wallLayer = layer;
-        Plugin.Log.LogDebug($"Camera wall layers: 0x{mask:X8}");
         return mask;
     }
 

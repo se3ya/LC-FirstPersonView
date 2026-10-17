@@ -291,6 +291,15 @@ internal static class LocalBodyViewController
 
         try
         {
+            CameraRig.UpdateSeatClamp(state, player);
+        }
+        catch (Exception ex)
+        {
+            LogStageError("Seat clamp", ex);
+        }
+
+        try
+        {
             MoreCompanyCompat.ApplyLocalCosmeticVisibility(
                 state, player, showBody, useVanillaArms, hideForSeat || spawning);
         }
@@ -465,6 +474,17 @@ internal static class LocalBodyViewController
             return 0f;
 
         return CameraRig.GetRayBack(state);
+    }
+
+    public static bool TryGetEye(PlayerControllerB player, out Vector3 eye)
+    {
+        eye = Vector3.zero;
+        if (!Players.IsLocal(player))
+            return false;
+        if (!States.TryGetValue(player.GetInstanceID(), out LocalBodyState? state))
+            return false;
+
+        return CameraRig.TryGetEye(state, out eye);
     }
 
     public static void OnLookInput(PlayerControllerB player)
