@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-17
+
+### Added
+
+- `FadeCoverage`, how much of screen held item covers before it starts to dither
+
+### Changed
+
+- `LookDownMargin` now goes down to -10 to show more of your body
+- Vehicle seats now let you look further down
+- Optimization
+
+### Fixed
+
+- Belt bag couldn't be opened by looking down at it
+
 ## [2.0.0] - 2026-10-07
 
 ### Added
