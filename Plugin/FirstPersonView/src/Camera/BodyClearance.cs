@@ -10,12 +10,22 @@ internal sealed class ClearancePoint
     public Transform[] Bones = Array.Empty<Transform>();
     public Vector3[] Locals = Array.Empty<Vector3>();
     public float[] Weights = Array.Empty<float>();
+    public int[] Slots = Array.Empty<int>();
 
     public Vector3 GetPosition()
     {
         Vector3 sum = Vector3.zero;
         for (int i = 0; i < Bones.Length; i++)
             sum += Bones[i].TransformPoint(Locals[i]) * Weights[i];
+
+        return sum;
+    }
+
+    public Vector3 GetPosition(Matrix4x4[] matrices)
+    {
+        Vector3 sum = Vector3.zero;
+        for (int i = 0; i < Slots.Length; i++)
+            sum += matrices[Slots[i]].MultiplyPoint3x4(Locals[i]) * Weights[i];
 
         return sum;
     }
@@ -81,12 +91,23 @@ internal static class BodyClearance
         if (points == null)
             return false;
 
+        ClearanceState clearance = state.Clearance;
+        Transform[] bones = clearance.Bones;
+        Matrix4x4[] matrices = clearance.Matrices;
+        for (int i = 0; i < bones.Length; i++)
+        {
+            if (bones[i] == null)
+                return false;
+
+            matrices[i] = bones[i].localToWorldMatrix;
+        }
+
         Vector3 right = container.right;
         Vector3 up = container.up;
         Vector3 forward = container.forward;
         foreach (ClearancePoint point in points)
         {
-            Vector3 delta = point.GetPosition() - reference;
+            Vector3 delta = point.GetPosition(matrices) - reference;
             offsets.Add(new Vector3(Vector3.Dot(delta, right), Vector3.Dot(delta, up), Vector3.Dot(delta, forward)));
         }
 
@@ -127,9 +148,33 @@ internal static class BodyClearance
             clearance.Points = null;
             clearance.Version++;
             clearance.Points = CreatePoints(mesh, body);
+            SetSlots(clearance);
         }
 
         return clearance.Points;
+    }
+
+    private static void SetSlots(ClearanceState clearance)
+    {
+        List<Transform> bones = new();
+        foreach (ClearancePoint point in clearance.Points ?? Array.Empty<ClearancePoint>())
+        {
+            point.Slots = new int[point.Bones.Length];
+            for (int i = 0; i < point.Bones.Length; i++)
+            {
+                int slot = bones.IndexOf(point.Bones[i]);
+                if (slot < 0)
+                {
+                    slot = bones.Count;
+                    bones.Add(point.Bones[i]);
+                }
+
+                point.Slots[i] = slot;
+            }
+        }
+
+        clearance.Bones = bones.ToArray();
+        clearance.Matrices = new Matrix4x4[bones.Count];
     }
 
     private static ClearancePoint[]? CreatePoints(Mesh mesh, SkinnedMeshRenderer body)
