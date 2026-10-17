@@ -16,23 +16,26 @@ internal static class InteractRayPatch
     private static readonly FieldInfo InteractRay = AccessTools.Field(typeof(PlayerControllerB), "interactRay");
     private static readonly MethodInfo RayMethod = AccessTools.Method(typeof(RayBack), nameof(RayBack.GetRay));
     private static readonly MethodInfo ReachMethod = AccessTools.Method(typeof(RayBack), nameof(RayBack.GetReach));
+    private static readonly MethodInfo HoverRayMethod = AccessTools.Method(typeof(RayBack), nameof(RayBack.GetHoverRay));
+    private static readonly MethodInfo HoverReachMethod = AccessTools.Method(typeof(RayBack), nameof(RayBack.GetHoverReach));
 
     [HarmonyPatch("SetHoverTipAndCurrentInteractTrigger")]
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> SetHoverTipAndCurrentInteractTrigger_Transpiler(
         IEnumerable<CodeInstruction> instructions)
     {
-        return Patch(instructions, "SetHoverTipAndCurrentInteractTrigger");
+        return Patch(instructions, "SetHoverTipAndCurrentInteractTrigger", HoverRayMethod, HoverReachMethod);
     }
 
     [HarmonyPatch("BeginGrabObject")]
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> BeginGrabObject_Transpiler(IEnumerable<CodeInstruction> instructions)
     {
-        return Patch(instructions, "BeginGrabObject");
+        return Patch(instructions, "BeginGrabObject", RayMethod, ReachMethod);
     }
 
-    private static List<CodeInstruction> Patch(IEnumerable<CodeInstruction> instructions, string method)
+    private static List<CodeInstruction> Patch(
+        IEnumerable<CodeInstruction> instructions, string method, MethodInfo rayMethod, MethodInfo reachMethod)
     {
         List<CodeInstruction> code = new(instructions);
         try
@@ -52,7 +55,7 @@ internal static class InteractRayPatch
                 if (i == ray)
                 {
                     patched.Add(new CodeInstruction(OpCodes.Ldarg_0) { labels = ci.labels, blocks = ci.blocks });
-                    patched.Add(new CodeInstruction(OpCodes.Call, RayMethod));
+                    patched.Add(new CodeInstruction(OpCodes.Call, rayMethod));
                     continue;
                 }
 
@@ -60,7 +63,7 @@ internal static class InteractRayPatch
                 if (i == reach)
                 {
                     patched.Add(new CodeInstruction(OpCodes.Ldarg_0));
-                    patched.Add(new CodeInstruction(OpCodes.Call, ReachMethod));
+                    patched.Add(new CodeInstruction(OpCodes.Call, reachMethod));
                 }
             }
 
