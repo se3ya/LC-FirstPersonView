@@ -111,6 +111,8 @@ internal sealed class ClearanceState
     public Mesh? Source;
     public SkinnedMeshRenderer? Body;
     public ClearancePoint[]? Points;
+    public Transform[] Bones = System.Array.Empty<Transform>();
+    public Matrix4x4[] Matrices = System.Array.Empty<Matrix4x4>();
     public int Version;
 }
 
@@ -122,8 +124,6 @@ internal sealed class EyeAnchorState
     public bool Captured;
     public bool Verified;
     public float SettledTime;
-    public float DriftHighSince;
-    public bool DriftWarned;
 }
 
 internal sealed class EmoteState
