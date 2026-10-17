@@ -28,6 +28,7 @@ public static class ConfigManager
     public static ConfigEntry<float> HandOffsetY = null!;
     public static ConfigEntry<float> HandOffsetZ = null!;
     public static ConfigEntry<float> LookDownMargin = null!;
+    public static ConfigEntry<float> FadeCoverage = null!;
     public static ConfigEntry<float> HeadFollow = null!;
     public static ConfigEntry<bool> HideBodyInCruiser = null!;
     public static ConfigEntry<bool> SmoothSwingReturn = null!;
@@ -172,6 +173,13 @@ public static class ConfigManager
             new ConfigDescription("How much of held item stays visible at strongest dither. 0.11 = 11%.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
+        FadeCoverage = config.Bind(
+            "2. Held Item",
+            "FadeCoverage",
+            0.45f,
+            new ConfigDescription("How much of screen held item can cover before it starts to dither. 0.45 = 45%. Requires 'FadeMode' Dither.",
+                new AcceptableValueRange<float>(0.2f, 0.85f)));
+
         ItemInBodyHand = config.Bind(
             "2. Held Item",
             "ItemInBodyHand",
@@ -277,8 +285,8 @@ public static class ConfigManager
             "6. Look Down",
             "LookDownMargin",
             0f,
-            new ConfigDescription("Gap in degrees kept between your player model and the bottom of the screen when looking down.",
-                new AcceptableValueRange<float>(0f, 10f)));
+            new ConfigDescription("Gap in degrees kept between your player model and the bottom of the screen when looking down. Negative shows more of your body.",
+                new AcceptableValueRange<float>(-10f, 10f)));
 
         VanillaArmsItems = config.Bind(
             "8. Item Hands",
