@@ -50,7 +50,7 @@ internal static class PoseSeeds
     public static float Get(PoseKey key, float pitch, float fov)
     {
         int row = GetRow(key);
-        return row < 0 ? 0f : GetValue(row, pitch, fov);
+        return row < 0 ? 0f : GetValue(row, pitch + ConfigManager.LookDownMargin.Value, fov);
     }
 
     public static float GetRamp(PoseKey key, float pitch, float fov)
@@ -60,7 +60,8 @@ internal static class PoseSeeds
 
         float start = Constants.Camera.RampStart;
         float end = Constants.Camera.RampEnd;
-        return Mathf.Clamp((pitch - start) / (end - start), 0f, 1f) * GetValue(IdleRow, end, fov);
+        float angle = pitch + ConfigManager.LookDownMargin.Value;
+        return Mathf.Clamp((angle - start) / (end - start), 0f, 1f) * GetValue(IdleRow, end, fov);
     }
 
     public static bool IsCrouchDown(PoseKey key) => key.Base == CrouchDownHash;
