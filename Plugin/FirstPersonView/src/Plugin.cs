@@ -39,7 +39,7 @@ public class Plugin : BaseUnityPlugin
         LethalPhonesCompat.Initialize();
         _harmony.PatchAll();
 
-        Log.LogInfo($"{MyPluginInfo.PLUGIN_NAME} is loaded!");
+        Log.LogInfo($"Hello {MyPluginInfo.PLUGIN_NAME}!");
     }
 
     private ConfigFile GetConfigFile()
