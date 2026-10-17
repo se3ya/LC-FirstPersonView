@@ -1,7 +1,8 @@
 <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
   <img src="https://img.shields.io/codefactor/grade/github/se3ya/LC-FirstPersonView?style=flat&logo=codefactor&logoColor=white&color=83E6FB&cacheSeconds=1200" alt="CodeFactor Grade">
-  <img src="https://img.shields.io/thunderstore/dt/seechela/First_Person_View?style=flat&logo=thunderstore&logoColor=white&color=83E6FB&cacheSeconds=1200" alt="Thunderstore Downloads">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fthunderstore.io%2Fapi%2Fv1%2Fpackage-metrics%2Fseechela%First_Person_View%2F&query=%24.downloads&label=downloads&style=flat&logo=thunderstore&logoColor=white&color=83E6FB&cacheSeconds=1200" alt="Thunderstore Downloads">
   <img src="https://img.shields.io/github/v/release/se3ya/LC-FirstPersonView?style=flat&logo=github&logoColor=white&color=83E6FB&cacheSeconds=1200" alt="GitHub Release Version">
+  <a href="https://discord.gg/Z9rUwTtUpx"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscordapp.com%2Fapi%2Finvites%2FZ9rUwTtUpx%3Fwith_counts%3Dtrue&query=approximate_member_count&style=flat&logo=discord&logoColor=white&color=83E6FB&cacheSeconds=1200&label=Discord" alt="Discord"></a>
   </div>
 <br><br>
 
@@ -13,7 +14,6 @@
 ## Features
 
 - Renders players body in first person
-- Vanilla camera that only moves forward when you look down, just enough to keep your neck out of view
 - Configurable arms mode: vanilla first-person arms, third-person arms or `Hybrid` where items held with both hands use vanilla arms
 - Held items in third-person arms mode will start to dither when they get too close to the screen or cover most of it
 - Compatible with **[MoreCompany](https://old.thunderstore.io/c/lethal-company/p/notnotnotswipez/MoreCompany/)**, **[TooManyEmotes](https://old.thunderstore.io/c/lethal-company/p/FlipMods/TooManyEmotes/)**, **[LethalPhones](https://old.thunderstore.io/c/lethal-company/p/Scoops/LethalPhones/)**, **[Extended Cosmetics Addon](https://old.thunderstore.io/c/lethal-company/p/MelanieMelicious/Extended_Cosmetics_Addon_MelanieMelicious/)**, **[CruiserImproved](https://old.thunderstore.io/c/lethal-company/p/DiggC/CruiserImproved/)** and **[Camera Overhaul](https://old.thunderstore.io/c/lethal-company/p/seechela/Camera_Overhaul/)**
@@ -42,6 +42,7 @@
 - **Fade Start Distance** - distance from the camera where held item starts to dither
 - **Fade End Distance** - distance where dither is strongest
 - **Min Visibility** - how much of item stays visible at the strongest dither
+- **Fade Coverage** - how much of screen held item can cover before it starts to dither
 - **Item In Body Hand** - players shadow and ship monitors show held item in your body hand while vanilla arms hold it. Turn off if having issues. Doesn't work for Egg, Belt bag, Jetpack, Heart and Tongue
 - **Hand Offset X / Y / Z** - moves vanilla first-person hands right, up or forward
 
@@ -61,7 +62,7 @@
 
 ### Look Down
 
-- **Look Down Margin** - gap in degrees kept between your suit and bottom of screen when looking down. 0 by default, more moves the camera further forward
+- **Look Down Margin** - gap in degrees kept between your suit and bottom of screen when looking down. 0 by default, more moves the camera further forward, negative shows more of your body
 
 ### Item Hands
 
