@@ -7,7 +7,7 @@ namespace FirstPersonView;
 
 internal static class HeldItemView
 {
-    private const int CoverageGridSize = 16;        // screen diced into this many rows/columns for coverage
+    private const int CoverageGridSize = 16;
     private static readonly int[] coverageRowMin = new int[CoverageGridSize];
     private static readonly int[] coverageRowMax = new int[CoverageGridSize];
 
@@ -23,7 +23,7 @@ internal static class HeldItemView
     private static bool hideActive;
     private static bool vanillaArms;
     private static bool fadeApplied;
-    private static float fadeCurrent = 1f;      // low passed fade smoothed toward the per frame target
+    private static float fadeCurrent = 1f;
 
     public static void SetHolder(PlayerControllerB player, GrabbableObject held, bool useVanillaArms, bool showBody)
     {
@@ -110,13 +110,14 @@ internal static class HeldItemView
         Vector3[] vertices = localVertices;
         Vector3 eye = renderingCamera.transform.position;
         float target;
-        if (vertices.Length == 0)   // unreadable mesh, distance only
+        if (vertices.Length == 0)
         {
             target = MaterialDither.ProximityFade(NearestBoxDistance(source, eye));
         }
         else
         {
             Matrix4x4 localToWorld = source.localToWorldMatrix;
+            Matrix4x4 viewProj = renderingCamera.projectionMatrix * renderingCamera.worldToCameraMatrix;
             float nearestSqr = float.MaxValue;
             for (int row = 0; row < CoverageGridSize; row++)
             {
@@ -132,12 +133,14 @@ internal static class HeldItemView
                 if (sqr < nearestSqr)
                     nearestSqr = sqr;
 
-                Vector3 view = renderingCamera.WorldToViewportPoint(world);
-                if (view.z <= 0f)
-                    continue;   // behind the eye, occupies no screen
+                float w = (viewProj.m30 * world.x) + (viewProj.m31 * world.y) + (viewProj.m32 * world.z) + viewProj.m33;
+                if (w <= 0f)
+                    continue;
 
-                int cx = Mathf.Clamp((int)(Mathf.Clamp01(view.x) * CoverageGridSize), 0, CoverageGridSize - 1);
-                int cy = Mathf.Clamp((int)(Mathf.Clamp01(view.y) * CoverageGridSize), 0, CoverageGridSize - 1);
+                float vx = ((((viewProj.m00 * world.x) + (viewProj.m01 * world.y) + (viewProj.m02 * world.z) + viewProj.m03) / w) * 0.5f) + 0.5f;
+                float vy = ((((viewProj.m10 * world.x) + (viewProj.m11 * world.y) + (viewProj.m12 * world.z) + viewProj.m13) / w) * 0.5f) + 0.5f;
+                int cx = Mathf.Clamp((int)(Mathf.Clamp01(vx) * CoverageGridSize), 0, CoverageGridSize - 1);
+                int cy = Mathf.Clamp((int)(Mathf.Clamp01(vy) * CoverageGridSize), 0, CoverageGridSize - 1);
                 if (cx < coverageRowMin[cy]) coverageRowMin[cy] = cx;
                 if (cx > coverageRowMax[cy]) coverageRowMax[cy] = cx;
             }
@@ -158,14 +161,12 @@ internal static class HeldItemView
         return fadeCurrent;
     }
 
-    // Screen coverage
     private static float CoverageFade(float coverage)
     {
-        return 1f - Mathf.Clamp01(Mathf.InverseLerp(
-            Constants.HeldItem.CoverageFadeStart, Constants.HeldItem.CoverageFadeFull, coverage));
+        float start = ConfigManager.FadeCoverage.Value;
+        return 1f - Mathf.Clamp01(Mathf.InverseLerp(start, start + Constants.HeldItem.CoverageFadeRange, coverage));
     }
 
-    // distance from a world point to renderers oriented box
     private static float NearestBoxDistance(Renderer renderer, Vector3 worldPoint)
     {
         Vector3 localPoint = renderer.worldToLocalMatrix.MultiplyPoint3x4(worldPoint);
