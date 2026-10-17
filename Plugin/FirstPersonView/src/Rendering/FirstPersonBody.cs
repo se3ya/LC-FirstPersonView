@@ -33,6 +33,8 @@ internal static class FirstPersonBody
     private static bool bodyDisabledWarned;
     private static float bodyDisabledSince;
     private static bool bodyLayerMoveLogged;
+    private static SkinnedMeshRenderer? shadowProxy;
+    private static bool shadowMuted;
 
     public static bool HideActive => hideActive;
     internal static bool VanillaArmsShown => fpArmsIntended;
@@ -389,9 +391,12 @@ internal static class FirstPersonBody
             }
         }
 
-        state.ShadowProxy.gameObject.layer = body.gameObject.layer;
+        if (state.ShadowProxy.gameObject.layer != body.gameObject.layer)
+            state.ShadowProxy.gameObject.layer = body.gameObject.layer;
         if (!state.ShadowProxy.enabled)
             state.ShadowProxy.enabled = true;
+
+        shadowProxy = state.ShadowProxy;
     }
 
     public static void ApplyForCamera(Camera camera)
@@ -408,6 +413,12 @@ internal static class FirstPersonBody
             Mesh? fpMesh = GetHideMesh();
             if (fpMesh != null && body.sharedMesh != fpMesh)
                 body.sharedMesh = fpMesh;
+
+            if (shadowProxy != null && shadowProxy.enabled && body.shadowCastingMode == ShadowCastingMode.On)
+            {
+                body.shadowCastingMode = ShadowCastingMode.Off;
+                shadowMuted = true;
+            }
         }
         else if (originalMesh != null && body.sharedMesh != originalMesh)
         {
@@ -498,15 +509,28 @@ internal static class FirstPersonBody
         }
 
         SkinnedMeshRenderer? body = hideRenderer;
-        if (body == null || originalMesh == null)
+        if (body == null)
             return;
 
-        if (camera == hideCamera && body.sharedMesh != originalMesh)
+        if (shadowMuted && camera == hideCamera)
+        {
+            if (body.shadowCastingMode == ShadowCastingMode.Off)
+                body.shadowCastingMode = ShadowCastingMode.On;
+
+            shadowMuted = false;
+        }
+
+        if (originalMesh != null && camera == hideCamera && body.sharedMesh != originalMesh)
             body.sharedMesh = originalMesh;
     }
 
     public static void Reset()
     {
+        if (shadowMuted && hideRenderer != null && hideRenderer.shadowCastingMode == ShadowCastingMode.Off)
+            hideRenderer.shadowCastingMode = ShadowCastingMode.On;
+
+        shadowMuted = false;
+        shadowProxy = null;
         hideActive = false;
         hideRenderer = null;
         originalMesh = null;
