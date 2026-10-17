@@ -230,15 +230,8 @@ internal static class TooManyEmotesCompat
             return;
 
         _lookPatched = true;
-        MethodInfo? target = AccessTools.DeclaredMethod(typeof(PlayerControllerB), "PlayerLookInput");
-        if (target == null)
-        {
-            Plugin.Log.LogWarning("Could not find PlayerControllerB.PlayerLookInput.");
-            return;
-        }
-
         Plugin.Harmony.Patch(
-            target,
+            AccessTools.DeclaredMethod(typeof(PlayerControllerB), nameof(PlayerControllerB.PlayerLookInput)),
             prefix: new HarmonyMethod(AccessTools.Method(typeof(TooManyEmotesCompat), nameof(LookInput_Prefix)))
             {
                 before = new[] { HarmonyId },
