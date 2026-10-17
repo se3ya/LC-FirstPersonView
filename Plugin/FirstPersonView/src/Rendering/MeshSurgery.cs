@@ -507,7 +507,6 @@ internal static class MeshSurgery
             return;
 
         CapMeshCache[meshId] = CreateCapMesh(sourceMesh, cap);
-        Plugin.Log.LogDebug($"Built the neck cap for '{sourceMesh.name}'.");
     }
 
     private static Mesh CreateCapMesh(Mesh sourceMesh, NeckCap.Shape cap)
